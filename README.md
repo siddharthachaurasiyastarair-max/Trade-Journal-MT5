@@ -44,4 +44,4 @@ The visible category totals are deliberately preserved from the original sheet:
 | Target | 2 |
 | Overall denominator | 15 |
 
-Every YES awards that item's displayed weight; NO awards zero. The app displays both the earned score and the fixed overall denominator of 15, exactly so the original scoring reference remains visible. Saved checklist answers remain editable.
+Every YES awards that item's displayed weight; NO awards zero. The form also shows the score and percentage for every category (Pre-Entry, Entry, SL and Target). The app displays both the earned score and the fixed overall denominator of 15, exactly so the original scoring reference remains visible. Saved checklist answers remain editable.
