@@ -18,7 +18,7 @@ Open the address above in **Safari** → Share button → **Add to Home Screen**
 ## Safe daily use
 
 - Start with **New trade**, choose Backtest, Paper or Live, complete the checklist and press **Save trade**. You can open and edit it later.
-- Enter actual Entry, Exit, Lots/Quantity, Lot Size and Charges: manual P&L is calculated automatically as `(exit − entry) × lots × lot size − charges` for a Buy, and `(entry − exit) × lots × lot size − charges` for a Sell. MT5 imports retain the broker's P&L.
+- Enter actual Entry, Exit, Lots/Quantity, Lot Size and Charges: manual P&L is calculated automatically as `(exit − entry) × lots × lot size − charges` for a Buy, and `(entry − exit) × lots × lot size − charges` for a Sell. The calculated amount refreshes while you edit the trade.
 - Use either screenshot control to choose a chart image from the iPhone Photos gallery (or take a new photo).
 - Use Dashboard for overall results and Analysis for checklist and score-band performance.
 - Use the download icon or History → CSV for a spreadsheet-readable backup. CSV is for review/export.
