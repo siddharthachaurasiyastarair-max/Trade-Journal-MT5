@@ -5,10 +5,10 @@ This is an offline-first iPhone-installable trade journal. It does **not** use G
 ## Replace the current app on GitHub Pages
 
 1. Download and extract the ZIP.
-2. Open your GitHub repository: `siddharthachaurasiyastarair-max/Trade-Journal`.
+2. Open your GitHub repository: `siddharthachaurasiyastarair-max/Trade-Journal-MT5`.
 3. Upload the files **inside** this folder to the repository root, replacing the existing versions when GitHub asks. Keep the file names unchanged.
 4. Commit the changes to the `main` branch.
-5. Wait 1–3 minutes, then open `https://siddharthachaurasiyastarair-max.github.io/Trade-Journal/`.
+5. Wait 1–3 minutes, then open `https://siddharthachaurasiyastarair-max.github.io/Trade-Journal-MT5/?v=12`.
 6. If your phone still shows the old app, close it completely, open the link once in Safari, and refresh. The new version then becomes available offline.
 
 ## Install on iPhone
@@ -17,8 +17,9 @@ Open the address above in **Safari** → Share button → **Add to Home Screen**
 
 ## Safe daily use
 
-- Start with **New trade**, choose Backtest, Paper or Live, complete the checklist, then press **Save & Lock pre-trade**.
-- Once locked, the original plan, answers and score cannot be changed in the app. Open it later to add the verification and after-trade screenshot.
+- Start with **New trade**, choose Backtest, Paper or Live, complete the checklist and press **Save trade**. You can open and edit it later.
+- Enter actual Entry, Exit, Lots/Quantity, Lot Size and Charges: manual P&L is calculated automatically as `(exit − entry) × lots × lot size − charges` for a Buy, and `(entry − exit) × lots × lot size − charges` for a Sell. MT5 imports retain the broker's P&L.
+- Use either screenshot control to choose a chart image from the iPhone Photos gallery (or take a new photo).
 - Use Dashboard for overall results and Analysis for checklist and score-band performance.
 - Use the download icon or History → CSV for a spreadsheet-readable backup. CSV is for review/export.
 - Use Dashboard → Backup for a full JSON backup that includes screenshots and can be restored from History → Restore.
