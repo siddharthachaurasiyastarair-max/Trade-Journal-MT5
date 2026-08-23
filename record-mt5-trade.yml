@@ -1,0 +1,33 @@
+name: Record MT5 demo trade
+on:
+  repository_dispatch:
+    types: [mt5_closed_trade]
+permissions:
+  contents: write
+jobs:
+  record:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Add or update the completed deal
+        env:
+          TRADE: ${{ toJson(github.event.client_payload.trade) }}
+        run: |
+          mkdir -p data
+          node - <<'NODE'
+          const fs=require('fs');
+          const trade=JSON.parse(process.env.TRADE);
+          let data={trades:[]};
+          try { data=JSON.parse(fs.readFileSync('data/mt5-trades.json','utf8')); } catch (_) {}
+          data.trades=Array.isArray(data.trades)?data.trades:[];
+          const i=data.trades.findIndex(t=>String(t.externalId)===String(trade.externalId));
+          if(i>=0)data.trades[i]=trade; else data.trades.unshift(trade);
+          fs.writeFileSync('data/mt5-trades.json',JSON.stringify(data,null,2)+'\n');
+          NODE
+      - name: Commit public trade data
+        run: |
+          git config user.name "TradeTrack MT5 Sync"
+          git config user.email "actions@github.com"
+          git add data/mt5-trades.json
+          git diff --cached --quiet || git commit -m "Record MT5 demo trade"
+          git push
