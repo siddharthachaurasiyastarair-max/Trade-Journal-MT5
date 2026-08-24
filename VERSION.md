@@ -1,4 +1,4 @@
-# TradeTrack AI v31 — Compact History Cards
+# TradeTrack AI v32 — Compact Blue History Cards
 
 - Screenshots can now be viewed inside the TradeTrack app in a full-screen modal.
 - Works for local screenshots and private Google Drive screenshots.
@@ -11,4 +11,7 @@
 - Restoring from Google Sheets retains both screenshot URLs.
 - Existing Drive URLs are protected from accidental blank overwrites.
 - History shows one viewer button per screenshot, preferring the local image and using Drive as fallback.
-- Screenshot buttons are compact and loss cards use a softer light-red design.
+- Screenshot buttons are compact and loss cards use a blue design.
+- Execution details now fall back to saved editor values when an MT5 field is blank.
+- Manual trades show their available entry, exit, SL, TP, and quantity details too.
+- Loss cards use a blue treatment and all History cards are more compact.

@@ -317,11 +317,11 @@ async function syncGoogleSheets(s=getMt5Settings()){
      let old=i>=0?all[i]:null;
      let v={
        ...(old?.verification||{}),
-       actualEntry:x['Open Price']??old?.verification?.actualEntry??'',
-       actualSL:x['SL']??old?.verification?.actualSL??'',
-       actualTarget:x['TP']??old?.verification?.actualTarget??'',
-       actualExit:x['Close Price']??old?.verification?.actualExit??'',
-       quantity:x['Volume']??old?.verification?.quantity??'1',
+       actualEntry:x['Open Price']??x['Entry Price']??x['Entry']??old?.verification?.actualEntry??'',
+       actualSL:x['SL']??x['Stop Loss']??old?.verification?.actualSL??'',
+       actualTarget:x['TP']??x['Take Profit']??x['Target']??old?.verification?.actualTarget??'',
+       actualExit:x['Close Price']??x['Exit Price']??x['Exit']??old?.verification?.actualExit??'',
+       quantity:x['Volume']??x['Lots']??x['Quantity']??old?.verification?.quantity??'1',
        lotSize:old?.verification?.lotSize||'1',
        charges:Math.abs(Number(x['Commission']||0))+Math.abs(Number(x['Swap']||0)),
        pnl,result:pnl>0?'Win':pnl<0?'Loss':'Breakeven',
@@ -337,8 +337,11 @@ async function syncGoogleSheets(s=getMt5Settings()){
        lockedAt:old?.lockedAt||(parseLocalTime(closed)||Date.now()),verification:v,source:'MT5',
        mt5:{
          ...(old?.mt5||{}),ticket,orderId:x['Order ID']||'',dealId:x['Deal ID']||'',symbol:x['Symbol']||'',
-         volume:x['Volume']||'',openTime:opened,closeTime:closed,entry:x['Open Price']??'',
-         exit:x['Close Price']??'',sl:x['SL']??'',target:x['TP']??'',profit:x['Profit']??'',
+         volume:x['Volume']??x['Lots']??x['Quantity']??old?.mt5?.volume??'',openTime:opened,closeTime:closed,
+         entry:x['Open Price']??x['Entry Price']??x['Entry']??old?.mt5?.entry??old?.verification?.actualEntry??'',
+         exit:x['Close Price']??x['Exit Price']??x['Exit']??old?.mt5?.exit??old?.verification?.actualExit??'',
+         sl:x['SL']??x['Stop Loss']??old?.mt5?.sl??old?.verification?.actualSL??'',
+         target:x['TP']??x['Take Profit']??x['Target']??old?.mt5?.target??old?.verification?.actualTarget??'',profit:x['Profit']??'',
          commission:x['Commission']??'',swap:x['Swap']??'',pnl,comment:x['Comment']||'',
          magicNumber:x['Magic Number']||'',lastSyncedAt:x['Last Synced At']||''
        }
@@ -414,8 +417,11 @@ function tradeRow(t){
  let checklistPresent=hasChecklist(t),p=percentOf(t),v=t.verification||{},m=t.mt5||{},cur=tradeCurrency(t),
  hasPnl=v.pnl!==''&&v.pnl!=null,pnl=hasPnl?signedMoney(v.pnl,cur):'—',
  rr=v.rr===''||v.rr==null?'—':`1:${fmt(v.rr)}`,loss=v.result==='Loss',
- isMt5=!!(t.source==='MT5'||m.ticket),openTime=m.openTime||'',closeTime=m.closeTime||'',
- mt5Info=isMt5?`<div class="mt5-detail-grid"><div><span>MT5 Ticket</span><b>${esc(m.ticket||'—')}</b></div><div><span>Volume</span><b>${m.volume!==''&&m.volume!=null?esc(m.volume):'—'}</b></div><div><span>Entry</span><b>${m.entry!==''&&m.entry!=null?fmt(m.entry):'—'}</b></div><div><span>Exit</span><b>${m.exit!==''&&m.exit!=null?fmt(m.exit):'—'}</b></div><div><span>SL</span><b>${m.sl!==''&&m.sl!=null?fmt(m.sl):'—'}</b></div><div><span>TP</span><b>${m.target!==''&&m.target!=null?fmt(m.target):'—'}</b></div><div><span>Open time</span><b>${esc(openTime||'—')}</b></div><div><span>Close time</span><b>${esc(closeTime||'—')}</b></div></div>`:'',
+ isMt5=!!(t.source==='MT5'||m.ticket),pick=(...xs)=>xs.find(x=>x!==''&&x!==null&&x!==undefined)??'',
+ openTime=pick(m.openTime,t.timestamp,t.date),closeTime=pick(m.closeTime,t.timestamp,t.date),
+ volume=pick(m.volume,v.quantity),entry=pick(m.entry,v.actualEntry),exit=pick(m.exit,v.actualExit),sl=pick(m.sl,v.actualSL),target=pick(m.target,v.actualTarget),
+ hasExecution=isMt5||[volume,entry,exit,sl,target].some(x=>x!==''&&x!=null),
+ mt5Info=hasExecution?`<div class="mt5-detail-grid">${m.ticket?`<div><span>Ticket</span><b>${esc(m.ticket)}</b></div>`:''}<div><span>Volume</span><b>${volume!==''?esc(volume):'—'}</b></div><div><span>Entry</span><b>${entry!==''?fmt(entry):'—'}</b></div><div><span>Exit</span><b>${exit!==''?fmt(exit):'—'}</b></div><div><span>SL</span><b>${sl!==''?fmt(sl):'—'}</b></div><div><span>TP</span><b>${target!==''?fmt(target):'—'}</b></div>${isMt5?`<div><span>Opened</span><b>${esc(openTime||'—')}</b></div><div><span>Closed</span><b>${esc(closeTime||'—')}</b></div>`:''}</div>`:'',
  shots=(t.beforeImage||t.beforeImageUrl||v.afterImage||v.afterImageUrl)?`<div class="screenshot-actions">${(t.beforeImage||t.beforeImageUrl)?`<button type="button" data-shot="${esc(t.beforeImage||t.beforeImageUrl)}" data-shot-title="Setup screenshot">Setup image</button>`:''}${(v.afterImage||v.afterImageUrl)?`<button type="button" data-shot="${esc(v.afterImage||v.afterImageUrl)}" data-shot-title="After-trade screenshot">After image</button>`:''}</div>`:'',
  linkState=isMt5?(checklistPresent?'<span class="linked-badge">Linked to checklist</span>':'<span class="unlinked-badge">MT5 only</span>'):'';
  return `<div class="trade-card history-trade-card ${loss?'history-loss-card':''}"><div class="history-top"><div><strong>${esc(t.script||'Untitled')}</strong><small>${esc(t.date||'No date')} · ${esc(t.direction)} · ${esc(t.mode)} · ${cur} ${linkState}</small></div><button class="history-open" data-open="${t.id}">Open</button></div><div class="history-middle"><div class="history-score"><span>Strategy Score</span><b>${checklistPresent?wholePercent(p):"—"}</b></div><div class="history-heads">${groups.map(g=>`<div><span>${g.name}</span><b>${checklistPresent?wholePercent(categoryPercent(t,g)):'—'}</b></div>`).join('')}</div></div>${mt5Info}${shots}<div class="history-columns history-summary"><div><span>P&amp;L</span><b>${pnl}</b></div><div><span>R:R</span><b>${rr}</b></div><div><span>Result</span><b>${v.result||'Pending'}</b></div><div><span>Plan followed</span><b>${v.followed||'—'}</b></div></div></div>`

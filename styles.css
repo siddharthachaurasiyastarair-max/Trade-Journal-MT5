@@ -17,17 +17,18 @@
 .shot-error{color:#ffb4b4}
 
 /* Compact history cards and small screenshot actions. */
-.history-trade-card{padding:9px 10px!important;margin-bottom:7px!important;border-radius:12px!important}
-.history-middle{margin:5px 0!important;grid-template-columns:78px 1fr!important;gap:6px!important}
-.history-score{padding:5px 7px!important}.history-score b{font-size:21px!important}
-.mt5-detail-grid{gap:5px!important;margin:6px 0!important;padding:7px 9px!important;border-radius:10px!important}
+.history-trade-card{padding:8px 9px!important;margin-bottom:6px!important;border-radius:11px!important}
+.history-middle{margin:4px 0!important;grid-template-columns:72px 1fr!important;gap:5px!important}
+.history-score{padding:4px 6px!important}.history-score b{font-size:19px!important}
+.mt5-detail-grid{grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:4px!important;margin:5px 0!important;padding:6px 8px!important;border-radius:9px!important}
 .mt5-detail-grid span{font-size:9px!important;margin-bottom:1px!important}.mt5-detail-grid b{font-size:11px!important}
 .screenshot-actions{display:flex!important;gap:5px!important;margin:6px 0!important}
 .history-trade-card .screenshot-actions button{width:auto!important;margin:0!important;padding:5px 8px!important;border-radius:7px!important;font-size:10px!important;box-shadow:none!important}
-.history-columns{padding-top:5px!important}.history-columns>div{padding-bottom:1px!important}
-.history-loss-card{background:#f8d7da!important;color:#7f1d2d!important;border:1px solid #efb7bd!important}
-.history-loss-card .history-open{color:#8f2434!important;border-color:#d98c96!important}
-.history-loss-card .history-top small,.history-loss-card .history-score span,.history-loss-card .history-heads span,.history-loss-card .history-columns span{color:#9b4652!important}
-.history-loss-card .history-score{background:#efbcc2!important}.history-loss-card .mt5-detail-grid{background:#f2c4c9!important}
-.history-loss-card .screenshot-actions button{background:#fff0f1!important;color:#8f2434!important;border-color:#d98c96!important}
-.history-loss-card .history-columns{border-color:#dfa3aa!important}.history-loss-card .profit-value,.history-loss-card .loss-value{color:#7f1d2d!important}
+.history-columns{padding-top:4px!important}.history-columns>div{padding-bottom:0!important}
+.history-loss-card{background:linear-gradient(125deg,#2563a7,#3b82c4)!important;color:#fff!important;border:0!important}
+.history-loss-card .history-open{color:#fff!important;border-color:#b9dcf5!important}
+.history-loss-card .history-top small,.history-loss-card .history-score span,.history-loss-card .history-heads span,.history-loss-card .history-columns span{color:#dbeeff!important}
+.history-loss-card .history-score{background:#ffffff18!important}.history-loss-card .mt5-detail-grid{background:#ffffff16!important}
+.history-loss-card .screenshot-actions button{background:#ffffff18!important;color:#fff!important;border-color:#b9dcf5!important}
+.history-loss-card .history-columns{border-color:#ffffff45!important}.history-loss-card .profit-value,.history-loss-card .loss-value{color:#fff!important}
+@media(max-width:700px){.mt5-detail-grid{grid-template-columns:repeat(4,minmax(0,1fr))!important}.mt5-detail-grid b{font-size:10px!important}.mt5-detail-grid span{font-size:8px!important}}
