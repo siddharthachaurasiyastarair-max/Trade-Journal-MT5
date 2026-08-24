@@ -1,5 +1,11 @@
-# TradeTrack AI — Final Updated Build
+# TradeTrack AI — Google Sheets MT5 Sync Build
 
-Build date: 23 August 2026 — revision 15
+Build date: 24 August 2026 — revision 22
 
-This package includes automatic manual P&L using entry, exit, direction, lots, lot size and charges; actual Stop Loss and Target fields with automatic risk/reward calculation; iPhone Photos-gallery screenshots; a repaired Dashboard Open button; stock-filtered dashboard metrics; gross profit, gross loss and net P&L; score-band loss scoring; equity curve; monthly profit/loss calendar; essential trading ratios; full MT5 Results reports (recovery factor, trade Sharpe ratio, absolute/maximal/relative drawdown, profit/loss trade percentages and detailed consecutive win/loss data); editable checklist workflow; Backtest/Paper/Live modes; verification; screenshots; history; analysis; CSV export; JSON backup/restore; offline use; old-record migration; and the YES/NO selection fixes.
+Changes:
+- MT5 Sync now reads directly from the TradeTrack AI Google Apps Script API / Google Sheet.
+- Removed dependency on GitHub raw mt5-trades.json for app synchronization.
+- Apps Script URL and API key are entered in the app and stored only in localStorage on that device.
+- Closed trades from MT5_Data are imported into the app as Live trades.
+- Existing imported MT5 tickets are updated rather than duplicated.
+- Service-worker cache bumped so installed iPhone PWAs receive the new app version.

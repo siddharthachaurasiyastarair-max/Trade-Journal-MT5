@@ -39,10 +39,119 @@ function renderDashboard(){const all=getTrades(), stocks=[...new Set(all.map(t=>
  $('#backupBtn')?.addEventListener('click',backupJSON);$('#reportsBtn')?.addEventListener('click',()=>{route='reports';render()});$('#syncMt5Btn')?.addEventListener('click',()=>{route='settings';render()});document.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>{editingId=b.dataset.open;draft=null;route='new';render()});$('#dashboardStock')?.addEventListener('change',e=>{dashboardStock=e.target.value;renderDashboard()});$('#previousMonth')?.addEventListener('click',()=>{let d=new Date(calendarMonth+'-01T12:00:00');d.setMonth(d.getMonth()-1);calendarMonth=d.toISOString().slice(0,7);renderDashboard()});$('#nextMonth')?.addEventListener('click',()=>{let d=new Date(calendarMonth+'-01T12:00:00');d.setMonth(d.getMonth()+1);calendarMonth=d.toISOString().slice(0,7);renderDashboard()});
 }
 function getMt5Settings(){try{return JSON.parse(localStorage.getItem(MT5_SYNC_KEY)||'{}')}catch{return{}}}
-function renderSyncSettings(){let s=getMt5Settings();app.innerHTML=heading('GitHub MT5 sync','Read public demo trades from your repository')+`<div class="card"><form id="mt5Settings"><label>GitHub owner<input name="owner" value="${esc(s.owner||'siddharthachaurasiyastarair-max')}"></label><label>Repository<input name="repo" value="${esc(s.repo||'Trade-Journal-MT5')}"></label><label>Branch<input name="branch" value="${esc(s.branch||'main')}"></label><button class="primary">Save &amp; sync MT5</button></form><p class="hint">Imported MT5 trades are public in this repository. Your GitHub token and MT5 password are not stored in this app.</p></div><button class="secondary" id="backDashboard">Back to dashboard</button>`;$('#mt5Settings').onsubmit=async e=>{e.preventDefault();let f=new FormData(e.target),next={owner:f.get('owner'),repo:f.get('repo'),branch:f.get('branch')||'main'};localStorage.setItem(MT5_SYNC_KEY,JSON.stringify(next));await syncGitHub(next)};$('#backDashboard').onclick=()=>{route='dashboard';render()}}
-async function syncGitHub(s=getMt5Settings()){if(!s.owner||!s.repo){alert('Enter the GitHub owner and repository first.');return}try{let url=`https://raw.githubusercontent.com/${encodeURIComponent(s.owner)}/${encodeURIComponent(s.repo)}/${encodeURIComponent(s.branch||'main')}/data/mt5-trades.json?time=${Date.now()}`,response=await fetch(url);if(!response.ok)throw new Error('Sync failed');let data=await response.json(),all=getTrades(),added=0;for(const x of data.trades||[]){let id='mt5-'+x.externalId,i=all.findIndex(t=>t.id===id),v={actualEntry:x.entry,actualSL:x.sl,actualTarget:x.target,actualExit:x.exit,quantity:x.volume||'1',lotSize:x.contractSize||'1',charges:x.charges||'',pnl:x.pnl,result:Number(x.pnl)>0?'Win':Number(x.pnl)<0?'Loss':'Breakeven',followed:'',movedSL:'',exitedEarly:'',notes:'Imported from MT5',afterImage:''};v.rr=riskReward(v,x.direction);let t={id,mode:'Live',date:String(x.closedAt).slice(0,10),timestamp:String(x.closedAt).replace(' ','T').slice(0,16),script:x.symbol,direction:x.direction,answers:{},beforeImage:'',lockedAt:Date.now(),verification:v,source:'MT5',mt5:x};if(i<0){all.unshift(t);added++}else all[i]={...all[i],...t,answers:all[i].answers||{}}}putTrades(all);alert(`GitHub MT5 sync complete: ${added} new trade(s).`);route='dashboard';render()}catch{alert('No public MT5 data file was found yet. Upload the GitHub workflow and MT5 Expert Advisor first, then complete one demo trade.')}}
-function equityChart(trades){let data=trades.slice().sort((a,b)=>(a.timestamp||a.date||'').localeCompare(b.timestamp||b.date||'')).map(t=>Number(t.verification?.pnl||0)),running=0,points=[0,...data.map(n=>running+=n)],min=Math.min(...points,0),max=Math.max(...points,0),range=max-min||1,w=320,h=130,pts=points.map((n,i)=>`${8+i*(w-16)/Math.max(1,points.length-1)},${h-18-(n-min)*(h-36)/range}`).join(' '),zero=h-18-(0-min)*(h-36)/range;return data.length?`<svg class="equity-chart" viewBox="0 0 ${w} ${h}" role="img" aria-label="Cumulative profit and loss chart"><line x1="8" x2="${w-8}" y1="${zero}" y2="${zero}"/><polyline points="${pts}"/><text x="8" y="12">Net P&amp;L ${running>=0?'+':''}${fmt(running)}</text><text x="8" y="${h-3}">First</text><text x="${w-42}" y="${h-3}">Latest</text></svg>`:`<div class="empty">Add verified trades with P&amp;L to see your equity curve.</div>`}
-function calendarGrid(trades,month){let first=new Date(month+'-01T12:00:00'),days=new Date(first.getFullYear(),first.getMonth()+1,0).getDate(),start=first.getDay(),byDay={};trades.filter(t=>(t.date||'').startsWith(month)).forEach(t=>{let d=Number((t.date||'').slice(-2));byDay[d]=(byDay[d]||0)+Number(t.verification?.pnl||0)});let cells=Array.from({length:start+days},(_,i)=>{if(i<start)return '<div class="cal-cell empty-day"></div>';let d=i-start,p=byDay[d],cls=p>0?'profit-day':p<0?'loss-day':'';return `<div class="cal-cell ${cls}"><b>${d}</b>${p!==undefined?`<small>${p>=0?'+':''}${fmt(p)}</small>`:''}</div>`});return `<div class="calendar-week">${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d=>`<span>${d}</span>`).join('')}</div><div class="calendar-grid">${cells.join('')}</div><p class="hint">Green = profitable day · Red = losing day</p>`}
+function renderSyncSettings(){
+ let s=getMt5Settings();
+ app.innerHTML=heading('Google Sheets MT5 sync','Import closed MT5 trades from your TradeTrack AI Database')+
+ `<div class="card"><form id="mt5Settings">
+ <label>Apps Script URL<input name="url" value="${esc(s.url||'https://script.google.com/macros/s/AKfycbyMkVzqfADdBgzlzmjDdkPSR8-CFOjT_KQ8YbBQLn2R3UPyDrud0F6SBVSFTOdyKYE/exec')}" placeholder="https://script.google.com/macros/s/.../exec"></label>
+ <label>API Key<input name="apiKey" type="password" value="${esc(s.apiKey||'')}" placeholder="Your TradeTrack API key" autocomplete="off"></label>
+ <button class="primary">Save &amp; sync MT5</button>
+ </form>
+ <p class="hint">The API key is saved only in this device's local browser storage. It is not uploaded to your public GitHub repository.</p>
+ </div>
+ <button class="secondary" id="backDashboard">Back to dashboard</button>`;
+ $('#mt5Settings').onsubmit=async e=>{
+   e.preventDefault();
+   let f=new FormData(e.target),next={url:String(f.get('url')||'').trim(),apiKey:String(f.get('apiKey')||'').trim()};
+   localStorage.setItem(MT5_SYNC_KEY,JSON.stringify(next));
+   await syncGoogleSheets(next);
+ };
+ $('#backDashboard').onclick=()=>{route='dashboard';render()}
+}
+function sheetDate(v){
+ if(!v)return '';
+ let s=String(v);
+ let d=new Date(s);
+ if(!isNaN(d.getTime())){
+   let z=d.getTimezoneOffset()*60000;
+   return new Date(d-z).toISOString();
+ }
+ return s.replace(' ','T');
+}
+async function syncGoogleSheets(s=getMt5Settings()){
+ if(!s.url||!s.apiKey){alert('Enter the Apps Script URL and API key first.');return}
+ try{
+   let sep=s.url.includes('?')?'&':'?';
+   let url=`${s.url}${sep}action=getMT5&apiKey=${encodeURIComponent(s.apiKey)}&_=${Date.now()}`;
+   let response=await fetch(url,{cache:'no-store'});
+   if(!response.ok)throw new Error(`HTTP ${response.status}`);
+   let data=await response.json();
+   if(!data.ok)throw new Error(data.error||'API returned an error');
+   let rows=Array.isArray(data.mt5)?data.mt5:[];
+   let all=getTrades(),added=0,updated=0;
+   for(const x of rows){
+     let ticket=String(x['MT5 Ticket']||x['Deal ID']||'').trim();
+     if(!ticket)continue;
+     let id='mt5-'+ticket;
+     let i=all.findIndex(t=>t.id===id);
+     let pnl=Number(x['Net P&L'] ?? x['Profit'] ?? 0);
+     let closed=sheetDate(x['Close Time']||x['Open Time']||new Date().toISOString());
+     let opened=sheetDate(x['Open Time']||closed);
+     let direction=String(x['Direction']||'').toLowerCase()==='sell'?'Sell':'Buy';
+     let v={
+       actualEntry:x['Open Price']??'',
+       actualSL:x['SL']??'',
+       actualTarget:x['TP']??'',
+       actualExit:x['Close Price']??'',
+       quantity:x['Volume']??'1',
+       lotSize:'1',
+       charges:Math.abs(Number(x['Commission']||0))+Math.abs(Number(x['Swap']||0)),
+       pnl:pnl,
+       result:pnl>0?'Win':pnl<0?'Loss':'Breakeven',
+       followed:'',
+       movedSL:'',
+       exitedEarly:'',
+       notes:'Imported from MT5 via Google Sheets',
+       afterImage:''
+     };
+     v.rr=riskReward(v,direction);
+     let t={
+       id,
+       mode:'Live',
+       date:closed.slice(0,10),
+       timestamp:closed.slice(0,16),
+       script:String(x['Symbol']||''),
+       direction,
+       plannedEntry:'',
+       plannedSL:'',
+       plannedTarget:'',
+       answers:i>=0?(all[i].answers||{}):{},
+       beforeImage:i>=0?(all[i].beforeImage||''):'',
+       lockedAt:i>=0?(all[i].lockedAt||Date.now()):Date.now(),
+       verification:v,
+       source:'MT5',
+       mt5:{
+         ticket,
+         orderId:x['Order ID']||'',
+         dealId:x['Deal ID']||'',
+         symbol:x['Symbol']||'',
+         volume:x['Volume']||'',
+         openTime:opened,
+         closeTime:closed,
+         entry:x['Open Price']??'',
+         exit:x['Close Price']??'',
+         sl:x['SL']??'',
+         target:x['TP']??'',
+         profit:x['Profit']??'',
+         commission:x['Commission']??'',
+         swap:x['Swap']??'',
+         pnl:pnl,
+         comment:x['Comment']||'',
+         magicNumber:x['Magic Number']||'',
+         lastSyncedAt:x['Last Synced At']||''
+       }
+     };
+     if(i<0){all.unshift(t);added++}
+     else {all[i]={...all[i],...t,answers:all[i].answers||{},beforeImage:all[i].beforeImage||t.beforeImage};updated++}
+   }
+   putTrades(all);
+   alert(`Google Sheets MT5 sync complete: ${added} new, ${updated} updated trade(s).`);
+   route='dashboard';render();
+ }catch(err){
+   console.error(err);
+   alert(`MT5 sync failed: ${err.message}`);
+ }
+}
 function mt5Stats(trades){let x=trades.filter(verified).slice().sort((a,b)=>(a.timestamp||a.date||'').localeCompare(b.timestamp||b.date||'')),p=x.map(t=>Number(t.verification?.pnl||0)),wins=p.filter(n=>n>0),losses=p.filter(n=>n<0),grossProfit=wins.reduce((a,n)=>a+n,0),grossLoss=Math.abs(losses.reduce((a,n)=>a+n,0)),net=p.reduce((a,n)=>a+n,0),latest=x.filter(t=>t.mt5?.balance!==undefined).slice(-1)[0]?.mt5,initial=latest?Number(latest.balance)-net:0,equity=initial,peak=initial,minBalance=initial,maxDD=0,maxDDPct=0,curWin=0,curLoss=0,curWinSum=0,curLossSum=0,maxWin=0,maxLoss=0,maxWinSum=0,maxLossSum=0,winRuns=[],lossRuns=[];for(const n of p){equity+=n;peak=Math.max(peak,equity);minBalance=Math.min(minBalance,equity);let dd=peak-equity;maxDD=Math.max(maxDD,dd);maxDDPct=Math.max(maxDDPct,peak?dd/peak*100:0);if(n>0){if(curLoss){lossRuns.push({count:curLoss,sum:curLossSum});curLoss=curLossSum=0}curWin++;curWinSum+=n;if(curWin>maxWin){maxWin=curWin;maxWinSum=curWinSum}}else if(n<0){if(curWin){winRuns.push({count:curWin,sum:curWinSum});curWin=curWinSum=0}curLoss++;curLossSum+=n;if(curLoss>maxLoss){maxLoss=curLoss;maxLossSum=curLossSum}}else{if(curWin)winRuns.push({count:curWin,sum:curWinSum});if(curLoss)lossRuns.push({count:curLoss,sum:curLossSum});curWin=curLoss=curWinSum=curLossSum=0}}if(curWin)winRuns.push({count:curWin,sum:curWinSum});if(curLoss)lossRuns.push({count:curLoss,sum:curLossSum});let mean=x.length?net/x.length:0,variance=x.length?p.reduce((a,n)=>a+(n-mean)**2,0)/x.length:0,sharpe=variance?mean/Math.sqrt(variance):0,side=dir=>{let a=x.filter(t=>t.direction===dir),w=a.filter(t=>Number(t.verification?.pnl||0)>0).length;return {all:a.length,wins:w,rate:a.length?w/a.length*100:0}};let result={x,p,wins,losses,grossProfit,grossLoss,net,profitFactor:grossLoss?grossProfit/grossLoss:0,expected:mean,avgWin:wins.length?grossProfit/wins.length:0,avgLoss:losses.length?grossLoss/losses.length:0,initial,minBalance,maxDD,maxDDPct,recovery:maxDD?net/maxDD:0,sharpe,maxWin,maxLoss,maxWinSum,maxLossSum,avgWinStreak:winRuns.length?winRuns.reduce((a,r)=>a+r.count,0)/winRuns.length:0,avgLossStreak:lossRuns.length?lossRuns.reduce((a,r)=>a+r.count,0)/lossRuns.length:0,best:Math.max(0,...p),worst:Math.min(0,...p),long:side('Buy'),short:side('Sell')};setTimeout(()=>renderMt5Results(result),0);return result}
 function renderMt5Results(s){let target=$('.equity-chart')?.closest('.card');if(!target)return;target.insertAdjacentHTML('beforebegin',`<div class="section-label">MT5 results</div><div class="card table-responsive"><table class="table"><tbody><tr><th>Total net profit</th><td>${s.net>=0?'+':''}${fmt(s.net)}</td><th>Gross profit</th><td>+${fmt(s.grossProfit)}</td><th>Gross loss</th><td>-${fmt(s.grossLoss)}</td></tr><tr><th>Profit factor</th><td>${s.grossLoss?fmt(s.profitFactor):'—'}</td><th>Expected payoff</th><td>${s.expected>=0?'+':''}${fmt(s.expected)}</td><th>Recovery factor</th><td>${s.maxDD?fmt(s.recovery):'—'}</td></tr><tr><th>Trade Sharpe ratio</th><td>${fmt(s.sharpe)}</td><th>Absolute drawdown</th><td>${fmt(Math.max(0,s.initial-s.minBalance))}</td><th>Maximal drawdown</th><td>${fmt(s.maxDD)} (${fmt(s.maxDDPct)}%)</td></tr><tr><th>Relative drawdown</th><td>${fmt(s.maxDDPct)}% (${fmt(s.maxDD)})</td><th>Profit trades</th><td>${s.wins.length} (${s.x.length?fmt(s.wins.length/s.x.length*100):0}%)</td><th>Loss trades</th><td>${s.losses.length} (${s.x.length?fmt(s.losses.length/s.x.length*100):0}%)</td></tr><tr><th>Max consecutive wins</th><td>${s.maxWin} (+${fmt(s.maxWinSum)})</td><th>Max consecutive losses</th><td>${s.maxLoss} (${fmt(s.maxLossSum)})</td><th>Average consecutive wins</th><td>${fmt(s.avgWinStreak)}</td></tr><tr><th>Average consecutive losses</th><td>${fmt(s.avgLossStreak)}</td><th>Largest profit trade</th><td>+${fmt(s.best)}</td><th>Largest loss trade</th><td>${fmt(s.worst)}</td></tr></tbody></table></div>`) }
 function renderReports(){let all=getTrades(),stocks=[...new Set(all.map(t=>t.script).filter(Boolean))].sort(),ts=dashboardStock==='All'?all:all.filter(t=>t.script===dashboardStock),s=mt5Stats(ts),latest=ts.filter(t=>t.source==='MT5').sort((a,b)=>(b.timestamp||b.date||'').localeCompare(a.timestamp||a.date||''))[0]?.mt5||{};app.innerHTML=heading('MT5 reports',dashboardStock==='All'?'All stocks combined':dashboardStock,`<div class="top-actions"><button class="secondary" id="backToDashboard">Dashboard</button></div>`)+`<div class="card dashboard-filter"><label>View stock<select id="reportStock"><option>All</option>${stocks.map(n=>`<option ${n===dashboardStock?'selected':''}>${esc(n)}</option>`).join('')}</select></label></div><div class="section-label">Account snapshot</div><div class="metric-grid"><div class="metric"><span>Balance</span><b>${latest.balance!==undefined?fmt(latest.balance):'—'}</b></div><div class="metric"><span>Equity</span><b>${latest.equity!==undefined?fmt(latest.equity):'—'}</b></div><div class="metric"><span>Free margin</span><b>${latest.freeMargin!==undefined?fmt(latest.freeMargin):'—'}</b></div></div><div class="section-label">Profit &amp; loss</div><div class="metric-grid"><div class="metric positive"><span>Gross profit</span><b>+${fmt(s.grossProfit)}</b></div><div class="metric negative"><span>Gross loss</span><b>-${fmt(s.grossLoss)}</b></div><div class="metric ${s.net>=0?'positive':'negative'}"><span>Net profit</span><b>${s.net>=0?'+':''}${fmt(s.net)}</b></div><div class="metric"><span>Profit factor</span><b>${s.grossLoss?fmt(s.profitFactor):'—'}</b></div><div class="metric"><span>Expected payoff</span><b>${s.expected>=0?'+':''}${fmt(s.expected)}</b></div><div class="metric"><span>Max drawdown</span><b>-${fmt(s.maxDD)}</b></div></div><div class="section-label">Trade quality</div><div class="metric-grid"><div class="metric"><span>Average win</span><b>+${fmt(s.avgWin)}</b></div><div class="metric"><span>Average loss</span><b>-${fmt(s.avgLoss)}</b></div><div class="metric positive"><span>Largest win</span><b>+${fmt(s.best)}</b></div><div class="metric negative"><span>Largest loss</span><b>${fmt(s.worst)}</b></div><div class="metric"><span>Max win streak</span><b>${s.maxWin}</b></div><div class="metric"><span>Max loss streak</span><b>${s.maxLoss}</b></div></div><div class="section-label">Long / short performance</div><div class="card table-responsive"><table class="table"><thead><tr><th>Direction</th><th>Trades</th><th>Wins</th><th>Win rate</th></tr></thead><tbody><tr><td>Buy / Long</td><td>${s.long.all}</td><td>${s.long.wins}</td><td>${s.long.all?fmt(s.long.rate)+'%':'—'}</td></tr><tr><td>Sell / Short</td><td>${s.short.all}</td><td>${s.short.wins}</td><td>${s.short.all?fmt(s.short.rate)+'%':'—'}</td></tr></tbody></table></div><div class="section-label">Equity curve</div><div class="card">${equityChart(s.x)}</div><p class="hint">Account values appear after you update the MT5 Expert Advisor and sync a newly closed trade. Drawdown is calculated from imported closed-trade P&amp;L.</p>`;$('#reportStock').onchange=e=>{dashboardStock=e.target.value;renderReports()};$('#backToDashboard').onclick=()=>{route='dashboard';render()}}
