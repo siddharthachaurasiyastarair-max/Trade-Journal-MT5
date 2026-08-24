@@ -1,4 +1,4 @@
-# TradeTrack AI v29 — In-App Screenshot Viewer
+# TradeTrack AI v30 — Reliable Drive Screenshots
 
 - Screenshots can now be viewed inside the TradeTrack app in a full-screen modal.
 - Works for local screenshots and private Google Drive screenshots.
@@ -6,3 +6,7 @@
 - No public Drive sharing is required.
 - View buttons work from History and the trade editor.
 - Close button/backdrop returns to the trade without leaving the app.
+- Local screenshot buttons appear immediately, even when Drive upload fails.
+- Drive upload success and exact failure messages are shown after saving.
+- Restoring from Google Sheets retains both screenshot URLs.
+- Existing Drive URLs are protected from accidental blank overwrites.
