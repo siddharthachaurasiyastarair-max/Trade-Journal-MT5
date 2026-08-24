@@ -1,11 +1,8 @@
-# TradeTrack AI v28 — Open Trade Fix
+# TradeTrack AI v29 — In-App Screenshot Viewer
 
-Corrections:
-- Restored the trade editor accidentally omitted from v27.
-- History and Dashboard Open buttons work again.
-- Existing manual and MT5 trades can be opened and edited.
-- Market and Currency are editable in the trade screen.
-- Fixed an MT5 sync JavaScript error caused by an undefined variable.
-- Existing Google Drive screenshot URLs survive MT5 re-sync.
-- Saved screenshots can be opened from History and from the trade editor.
-- Saving/editing a trade continues to attempt Google Sheets + Drive cloud backup.
+- Screenshots can now be viewed inside the TradeTrack app in a full-screen modal.
+- Works for local screenshots and private Google Drive screenshots.
+- Private Drive images are retrieved through the Apps Script API using the existing API key.
+- No public Drive sharing is required.
+- View buttons work from History and the trade editor.
+- Close button/backdrop returns to the trade without leaving the app.
