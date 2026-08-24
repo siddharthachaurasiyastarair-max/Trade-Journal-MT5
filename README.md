@@ -1,23 +1,29 @@
-# TradeTrack AI v24
+# TradeTrack AI v27
 
-## Important: update the Apps Script first
-This build adds journal restore from the `Checklist` tab, so replace your current Apps Script `Code.gs` with the included `Code.gs`, then deploy a **new version** of the existing Web App.
+A Google Drive folder has already been created for screenshots:
+TradeTrack AI Screenshots
+Folder ID: 1Hl6yBTRRlTd4fl1qqLU2qIhWSxoCWA0A
 
-Keep the same API key. Do not run `setupApiKey()` again unless you intentionally want a new key.
+## Update Apps Script
+1. Replace your existing Code.gs with the Code.gs in this ZIP.
+2. Do NOT run setupApiKey again.
+3. Deploy -> Manage deployments -> Edit -> New version -> Deploy.
 
-## Then update GitHub Pages
-Upload/replace the web-app files in the root of your current TradeTrack GitHub Pages repository.
+The backend automatically adds missing Trade columns:
+- Market
+- Currency
+- Before Screenshot URL
+- After Screenshot URL
 
-Do **not** upload `Code.gs` to GitHub; it is provided only for your Google Apps Script project.
+## Update GitHub
+Upload all web files from this ZIP to your GitHub Pages repository, replacing the old build.
+Do not upload Code.gs to GitHub.
 
-After GitHub deploys:
-1. Open the GitHub Pages URL once in Safari and refresh.
-2. Reopen the iPhone Home Screen app.
-3. Dashboard -> MT5 Sync.
-4. Save the `/exec` URL and API key.
-5. Use MT5 sync, Upload journal, or Restore / merge journal.
+## Screenshot workflow
+When you choose a Setup Screenshot or After-Trade Screenshot and save the trade:
+- The app keeps the compressed image locally for offline use.
+- If Google sync is configured, it uploads the image to Google Drive.
+- The Drive URL is saved against that trade in Google Sheets.
+- History displays a button to open the saved screenshot.
 
-## Data
-- App records remain in iPhone localStorage for offline use.
-- Structured journal/checklist records can now be backed up to Google Sheets.
-- Screenshots stay local on the iPhone because storing Base64 images in Sheets would make the workbook large and slow.
+The Drive files remain private to your Google account unless you separately change their sharing settings.
