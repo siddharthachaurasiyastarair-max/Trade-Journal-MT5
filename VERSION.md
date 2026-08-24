@@ -1,11 +1,17 @@
-# TradeTrack AI — Google Sheets MT5 Sync Build
+# TradeTrack AI v24 — Reviewed & Improved
 
-Build date: 24 August 2026 — revision 22
+Corrections:
+- Fixed monthly P&L calendar off-by-one day (day 1 now starts correctly and the last day is shown).
+- Normalizes MT5 dates like `YYYY.MM.DD HH:MM:SS`.
+- MT5-only imports no longer distort strategy-score averages/score bands by appearing as 0% checklist trades.
+- MT5-only trade cards show `—` for checklist scores rather than a misleading 0%.
+- Attempts to link an incoming MT5 trade to the closest unlinked planned trade with the same symbol and direction within 24 hours.
+- Imported trade ordering now uses the trade close time rather than the moment the sync button was pressed.
+- More reliable iPhone Home Screen icons via PNG.
 
-Changes:
-- MT5 Sync now reads directly from the TradeTrack AI Google Apps Script API / Google Sheet.
-- Removed dependency on GitHub raw mt5-trades.json for app synchronization.
-- Apps Script URL and API key are entered in the app and stored only in localStorage on that device.
-- Closed trades from MT5_Data are imported into the app as Live trades.
-- Existing imported MT5 tickets are updated rather than duplicated.
-- Service-worker cache bumped so installed iPhone PWAs receive the new app version.
+Improvements:
+- New local-journal -> Google Sheets backup.
+- New Google Sheets -> iPhone journal restore/merge.
+- Saving/editing a journal trade automatically attempts a cloud backup when sync is configured.
+- MT5 sync screen shows last successful sync.
+- Screenshots intentionally remain local; the structured trade/checklist data is backed up to Google Sheets.

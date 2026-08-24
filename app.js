@@ -19,6 +19,7 @@ const scoreOf=t=>groups.reduce((n,g)=>n+g.items.reduce((a,[name,w])=>a+(t.answer
 const percentOf=t=>scoreOf(t)/15*100;
 const categoryScore=(t,g)=>g.items.reduce((a,[name,w])=>a+(t.answers?.[g.name+'|'+name]==='Yes'?w:0),0);
 const categoryPercent=(t,g)=>g.total?categoryScore(t,g)/g.total*100:0;
+const hasChecklist=t=>Object.values(t?.answers||{}).some(v=>v==='Yes'||v==='No');
 const wholePercent=n=>`${Math.round(Number(n)||0)}%`;
 function riskReward(v,direction){let entry=Number(v?.actualEntry),sl=Number(v?.actualSL),target=Number(v?.actualTarget);if(!Number.isFinite(entry)||!Number.isFinite(sl)||!Number.isFinite(target)||entry===sl)return '';let risk=Math.abs(entry-sl),reward=direction==='Sell'?entry-target:target-entry;return reward>0?reward/risk:''}
 function calculatedPnl(v,direction){if(v?.actualEntry===''||v?.actualEntry==null||v?.actualExit===''||v?.actualExit==null||v?.quantity===''||Number(v?.quantity)<=0||v?.lotSize===''||Number(v?.lotSize||1)<=0)return '';let entry=Number(v.actualEntry),exit=Number(v.actualExit),quantity=Number(v.quantity),lotSize=Number(v.lotSize||1),charges=Number(v.charges||0);if(!Number.isFinite(entry)||!Number.isFinite(exit)||!Number.isFinite(quantity)||!Number.isFinite(lotSize)||!Number.isFinite(charges))return '';return (direction==='Sell'?entry-exit:exit-entry)*quantity*lotSize-charges}
@@ -31,132 +32,260 @@ function nav(){document.querySelectorAll('[data-route]').forEach(b=>b.classList.
 function heading(title,sub,actions=''){return `<div class="page-heading"><div><h1>${title}</h1><p>${sub||''}</p></div>${actions}</div>`}
 function render(){nav(); if(route==='new')renderTrade(); else if(route==='history')renderHistory(); else if(route==='analysis')renderAnalysis(); else if(route==='reports')renderReports(); else if(route==='settings')renderSyncSettings(); else renderDashboard();}
 function verified(t){return ['Win','Loss','Breakeven'].includes(t.verification?.result)}
-function renderDashboard(){const all=getTrades(), stocks=[...new Set(all.map(t=>t.script).filter(Boolean))].sort(),ts=dashboardStock==='All'?all:all.filter(t=>t.script===dashboardStock),done=ts.filter(verified),wins=done.filter(t=>t.verification.result==='Win'),losses=done.filter(t=>t.verification.result==='Loss'),be=done.filter(t=>t.verification.result==='Breakeven'),pnlOf=t=>Number(t.verification?.pnl||0),grossProfit=wins.reduce((a,t)=>a+Math.max(0,pnlOf(t)),0),grossLoss=losses.reduce((a,t)=>a+Math.abs(Math.min(0,pnlOf(t))),0),pnl=done.reduce((a,t)=>a+pnlOf(t),0),wr=done.length?wins.length/done.length*100:0,avg=ts.length?ts.reduce((a,t)=>a+percentOf(t),0)/ts.length:0,aw=wins.length?wins.reduce((a,t)=>a+percentOf(t),0)/wins.length:0,al=losses.length?losses.reduce((a,t)=>a+percentOf(t),0)/losses.length:0,pf=grossLoss?grossProfit/grossLoss:'—',avgWin=wins.length?grossProfit/wins.length:0,avgLoss=losses.length?grossLoss/losses.length:0,payoff=avgLoss?avgWin/avgLoss:'—',expectancy=done.length?pnl/done.length:0,rrs=done.map(t=>Number(t.verification?.rr)).filter(Number.isFinite),avgR=rrs.length?rrs.reduce((a,n)=>a+n,0)/rrs.length:0,followed=done.filter(t=>t.verification?.followed==='Yes').length;
+function renderDashboard(){const all=getTrades(), stocks=[...new Set(all.map(t=>t.script).filter(Boolean))].sort(),ts=dashboardStock==='All'?all:all.filter(t=>t.script===dashboardStock),done=ts.filter(verified),wins=done.filter(t=>t.verification.result==='Win'),losses=done.filter(t=>t.verification.result==='Loss'),be=done.filter(t=>t.verification.result==='Breakeven'),pnlOf=t=>Number(t.verification?.pnl||0),grossProfit=wins.reduce((a,t)=>a+Math.max(0,pnlOf(t)),0),grossLoss=losses.reduce((a,t)=>a+Math.abs(Math.min(0,pnlOf(t))),0),pnl=done.reduce((a,t)=>a+pnlOf(t),0),wr=done.length?wins.length/done.length*100:0,strategyTs=ts.filter(hasChecklist),strategyWins=wins.filter(hasChecklist),strategyLosses=losses.filter(hasChecklist),avg=strategyTs.length?strategyTs.reduce((a,t)=>a+percentOf(t),0)/strategyTs.length:0,aw=strategyWins.length?strategyWins.reduce((a,t)=>a+percentOf(t),0)/strategyWins.length:0,al=strategyLosses.length?strategyLosses.reduce((a,t)=>a+percentOf(t),0)/strategyLosses.length:0,pf=grossLoss?grossProfit/grossLoss:'—',avgWin=wins.length?grossProfit/wins.length:0,avgLoss=losses.length?grossLoss/losses.length:0,payoff=avgLoss?avgWin/avgLoss:'—',expectancy=done.length?pnl/done.length:0,rrs=done.map(t=>Number(t.verification?.rr)).filter(Number.isFinite),avgR=rrs.length?rrs.reduce((a,n)=>a+n,0)/rrs.length:0,followed=done.filter(t=>t.verification?.followed==='Yes').length;
  app.innerHTML=heading('Dashboard',dashboardStock==='All'?'All stocks combined':dashboardStock,`<div class="top-actions"><button class="secondary" id="reportsBtn">Reports</button><button class="secondary" id="syncMt5Btn">MT5 Sync</button><button class="secondary" id="backupBtn">Backup</button></div>`)+`<div class="card dashboard-filter"><label>View stock<select id="dashboardStock"><option>All</option>${stocks.map(s=>`<option ${s===dashboardStock?'selected':''}>${esc(s)}</option>`).join('')}</select></label></div><div class="metric-grid"><div class="metric"><span>Total trades</span><b>${ts.length}</b></div><div class="metric positive"><span>Wins</span><b>${wins.length}</b></div><div class="metric negative"><span>Losses</span><b>${losses.length}</b></div><div class="metric"><span>Breakeven</span><b>${be.length}</b></div><div class="metric positive"><span>Win rate</span><b>${fmt(wr)}%</b></div><div class="metric"><span>Avg score</span><b>${fmt(avg)}%</b></div><div class="metric positive"><span>Avg win score</span><b>${fmt(aw)}%</b></div><div class="metric negative"><span>Avg loss score</span><b>${fmt(al)}%</b></div><div class="metric positive"><span>Total profit</span><b>+${fmt(grossProfit)}</b></div><div class="metric negative"><span>Total loss</span><b>-${fmt(grossLoss)}</b></div><div class="metric ${pnl>=0?'positive':'negative'}"><span>Net P&amp;L</span><b>${pnl>=0?'+':''}${fmt(pnl)}</b></div></div>`+
  `<div class="section-label">Trading ratios</div><div class="metric-grid"><div class="metric"><span>Profit factor</span><b>${typeof pf==='number'?fmt(pf):pf}</b></div><div class="metric"><span>Payoff ratio</span><b>${typeof payoff==='number'?fmt(payoff):payoff}</b></div><div class="metric"><span>Expectancy / trade</span><b>${expectancy>=0?'+':''}${fmt(expectancy)}</b></div><div class="metric"><span>Average R:R</span><b>${fmt(avgR)}</b></div><div class="metric"><span>Plan followed</span><b>${done.length?fmt(followed/done.length*100)+'%':'—'}</b></div></div>`+
- `<div class="section-label">Equity curve</div><div class="card">${equityChart(done)}</div><div class="section-label">Score-band performance</div><div class="card table-responsive"><table class="table"><thead><tr><th>Score</th><th>Trades</th><th>Wins</th><th>Losses</th><th>Win rate</th><th>Avg loss score</th></tr></thead><tbody>${bands(done).map(x=>{let xl=x.all.filter(t=>t.verification.result==='Loss'),lossScore=xl.length?xl.reduce((a,t)=>a+percentOf(t),0)/xl.length:0;return `<tr><td>${x.label}</td><td>${x.all.length}</td><td>${x.wins}</td><td>${xl.length}</td><td>${x.all.length?fmt(x.wins/x.all.length*100)+'%':'—'}</td><td>${xl.length?fmt(lossScore)+'%':'—'}</td></tr>`}).join('')}</tbody></table></div>`+
+ `<div class="section-label">Equity curve</div><div class="card">${equityChart(done)}</div><div class="section-label">Score-band performance</div><div class="card table-responsive"><table class="table"><thead><tr><th>Score</th><th>Trades</th><th>Wins</th><th>Losses</th><th>Win rate</th><th>Avg loss score</th></tr></thead><tbody>${bands(done.filter(hasChecklist)).map(x=>{let xl=x.all.filter(t=>t.verification.result==='Loss'),lossScore=xl.length?xl.reduce((a,t)=>a+percentOf(t),0)/xl.length:0;return `<tr><td>${x.label}</td><td>${x.all.length}</td><td>${x.wins}</td><td>${xl.length}</td><td>${x.all.length?fmt(x.wins/x.all.length*100)+'%':'—'}</td><td>${xl.length?fmt(lossScore)+'%':'—'}</td></tr>`}).join('')}</tbody></table></div>`+
  `<div class="section-label">Monthly P&amp;L calendar</div><div class="card"><div class="calendar-controls"><button id="previousMonth">‹</button><strong>${monthLabel(calendarMonth)}</strong><button id="nextMonth">›</button></div>${calendarGrid(done,calendarMonth)}</div><div class="section-label">Recent trades</div><div class="card">${ts.length?ts.slice().sort((a,b)=>b.lockedAt-a.lockedAt).slice(0,5).map(tradeRow).join(''):`<div class="empty">No trades saved for this view.</div>`}</div>`;
  $('#backupBtn')?.addEventListener('click',backupJSON);$('#reportsBtn')?.addEventListener('click',()=>{route='reports';render()});$('#syncMt5Btn')?.addEventListener('click',()=>{route='settings';render()});document.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>{editingId=b.dataset.open;draft=null;route='new';render()});$('#dashboardStock')?.addEventListener('change',e=>{dashboardStock=e.target.value;renderDashboard()});$('#previousMonth')?.addEventListener('click',()=>{let d=new Date(calendarMonth+'-01T12:00:00');d.setMonth(d.getMonth()-1);calendarMonth=d.toISOString().slice(0,7);renderDashboard()});$('#nextMonth')?.addEventListener('click',()=>{let d=new Date(calendarMonth+'-01T12:00:00');d.setMonth(d.getMonth()+1);calendarMonth=d.toISOString().slice(0,7);renderDashboard()});
 }
 function getMt5Settings(){try{return JSON.parse(localStorage.getItem(MT5_SYNC_KEY)||'{}')}catch{return{}}}
+function saveMt5Settings(s){localStorage.setItem(MT5_SYNC_KEY,JSON.stringify(s))}
 function renderSyncSettings(){
- let s=getMt5Settings();
- app.innerHTML=heading('Google Sheets MT5 sync','Import closed MT5 trades from your TradeTrack AI Database')+
+ let s=getMt5Settings(),last=s.lastSync?new Date(s.lastSync).toLocaleString():'Never';
+ app.innerHTML=heading('Google Sheets sync','MT5 + journal backup in your TradeTrack AI Database')+
  `<div class="card"><form id="mt5Settings">
  <label>Apps Script URL<input name="url" value="${esc(s.url||'https://script.google.com/macros/s/AKfycbyMkVzqfADdBgzlzmjDdkPSR8-CFOjT_KQ8YbBQLn2R3UPyDrud0F6SBVSFTOdyKYE/exec')}" placeholder="https://script.google.com/macros/s/.../exec"></label>
- <label>API Key<input name="apiKey" type="password" value="${esc(s.apiKey||'')}" placeholder="Your TradeTrack API key" autocomplete="off"></label>
- <button class="primary">Save &amp; sync MT5</button>
+ <label>API Key<input name="apiKey" type="password" value="${esc(s.apiKey||'')}" placeholder="TradeTrack API key" autocomplete="off"></label>
+ <button class="primary">Save settings &amp; sync MT5</button>
  </form>
- <p class="hint">The API key is saved only in this device's local browser storage. It is not uploaded to your public GitHub repository.</p>
+ <p class="hint">Last successful sync: ${esc(last)}. The API key stays only in local storage on this device and is not written to your public GitHub repository.</p>
  </div>
+ <div class="card"><h2>Journal cloud backup</h2>
+ <button class="primary" id="pushJournal">Upload local journal to Google Sheets</button>
+ <button class="secondary" id="pullJournal">Restore / merge journal from Google Sheets</button>
+ <p class="hint">Screenshots remain local on the iPhone; trade details and checklist answers are backed up to Sheets.</p></div>
  <button class="secondary" id="backDashboard">Back to dashboard</button>`;
  $('#mt5Settings').onsubmit=async e=>{
    e.preventDefault();
-   let f=new FormData(e.target),next={url:String(f.get('url')||'').trim(),apiKey:String(f.get('apiKey')||'').trim()};
-   localStorage.setItem(MT5_SYNC_KEY,JSON.stringify(next));
+   let f=new FormData(e.target),next={...s,url:String(f.get('url')||'').trim(),apiKey:String(f.get('apiKey')||'').trim()};
+   saveMt5Settings(next);
    await syncGoogleSheets(next);
  };
+ $('#pushJournal').onclick=async()=>{await pushAllJournalToCloud()};
+ $('#pullJournal').onclick=async()=>{await pullJournalFromCloud()};
  $('#backDashboard').onclick=()=>{route='dashboard';render()}
 }
-function sheetDate(v){
- if(!v)return '';
- let s=String(v);
- let d=new Date(s);
- if(!isNaN(d.getTime())){
-   let z=d.getTimezoneOffset()*60000;
-   return new Date(d-z).toISOString();
+function normalizeSheetDate(v){
+ if(v===null||v===undefined||v==='')return '';
+ let s=String(v).trim();
+ // MT5 commonly sends YYYY.MM.DD HH:MM:SS.
+ let m=s.match(/^(\d{4})[.\-/](\d{2})[.\-/](\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?/);
+ if(m){
+   let out=`${m[1]}-${m[2]}-${m[3]}`;
+   if(m[4])out+=`T${m[4]}:${m[5]}${m[6]?':'+m[6]:''}`;
+   return out;
  }
+ let d=new Date(s);
+ if(!isNaN(d.getTime()))return localIsoFromDate(d);
  return s.replace(' ','T');
+}
+function localIsoFromDate(d){
+ let z=d.getTimezoneOffset()*60000;
+ return new Date(d-z).toISOString().replace(/Z$/,'');
+}
+function parseLocalTime(v){
+ let s=normalizeSheetDate(v);
+ let d=new Date(s);
+ return isNaN(d.getTime())?NaN:d.getTime();
+}
+function findPlannedMatch(all,x,direction,closed){
+ let symbol=String(x['Symbol']||'').trim().toLowerCase(),closeMs=parseLocalTime(closed);
+ let candidates=all.filter(t=>{
+   if(t.source==='MT5'||t.mt5?.ticket)return false;
+   if(String(t.script||'').trim().toLowerCase()!==symbol)return false;
+   if(String(t.direction||'').toLowerCase()!==direction.toLowerCase())return false;
+   let tm=parseLocalTime(t.timestamp||t.date);
+   if(Number.isFinite(closeMs)&&Number.isFinite(tm))return Math.abs(closeMs-tm)<=24*60*60*1000;
+   return normalizeSheetDate(t.date).slice(0,10)===normalizeSheetDate(closed).slice(0,10);
+ });
+ if(!candidates.length)return null;
+ candidates.sort((a,b)=>{
+   let aa=Math.abs(closeMs-parseLocalTime(a.timestamp||a.date)),bb=Math.abs(closeMs-parseLocalTime(b.timestamp||b.date));
+   return (Number.isFinite(aa)?aa:1e18)-(Number.isFinite(bb)?bb:1e18);
+ });
+ return candidates[0];
+}
+async function apiGet(action,s=getMt5Settings()){
+ if(!s.url||!s.apiKey)throw new Error('Enter the Apps Script URL and API key first.');
+ let sep=s.url.includes('?')?'&':'?';
+ let url=`${s.url}${sep}action=${encodeURIComponent(action)}&apiKey=${encodeURIComponent(s.apiKey)}&_=${Date.now()}`;
+ let response=await fetch(url,{cache:'no-store'});
+ if(!response.ok)throw new Error(`HTTP ${response.status}`);
+ let data=await response.json();
+ if(!data.ok)throw new Error(data.error||'API returned an error');
+ return data;
+}
+async function apiPost(payload,s=getMt5Settings()){
+ if(!s.url||!s.apiKey)throw new Error('Cloud sync is not configured.');
+ let response=await fetch(s.url,{
+   method:'POST',
+   headers:{'Content-Type':'text/plain;charset=utf-8'},
+   body:JSON.stringify({...payload,apiKey:s.apiKey}),
+   redirect:'follow'
+ });
+ if(!response.ok)throw new Error(`HTTP ${response.status}`);
+ let data=await response.json();
+ if(!data.ok)throw new Error(data.error||'API returned an error');
+ return data;
+}
+function tradeCloudPayload(t){
+ let v=t.verification||{};
+ return {
+   action:'saveTrade',tradeId:t.id,date:t.date||'',time:(t.timestamp||'').slice(11,16),
+   mode:t.mode||'',script:t.script||'',direction:t.direction||'',
+   plannedEntry:t.plannedEntry||'',plannedSL:t.plannedSL||'',plannedTarget:t.plannedTarget||'',
+   preEntryPercent:categoryPercent(t,groups[0]),entryPercent:categoryPercent(t,groups[1]),
+   slPercent:categoryPercent(t,groups[2]),targetPercent:categoryPercent(t,groups[3]),
+   overallPercent:percentOf(t),strategyGrade:qualification(percentOf(t)),
+   locked:!!t.lockedAt,mt5Ticket:t.mt5?.ticket||'',
+   actualEntry:v.actualEntry??'',actualExit:v.actualExit??'',result:v.result||'',
+   pnl:v.pnl??'',rr:v.rr??'',followedSetup:v.followed||'',movedSL:v.movedSL||'',
+   exitedEarly:v.exitedEarly||'',reviewNotes:v.notes||''
+ };
+}
+function checklistCloudPayload(t){
+ let a=t.answers||{};
+ return {
+   action:'saveChecklist',tradeId:t.id,date:t.date||'',script:t.script||'',mode:t.mode||'',
+   rsiTrend:a['Pre-Entry|RSI Trend']||'',rsiLevel:a['Pre-Entry|RSI Level']||'',
+   liquidityPre:a['Pre-Entry|Liquidity (SL Hunt)']||'',engulfingPre:a['Pre-Entry|Engulfing Candle']||'',
+   divergent:a['Pre-Entry|Divergent']||'',obEntry:a['Entry|OB Entry (On retracement)']||'',
+   candleCloseEntry:a['Entry|Candle Close Entry']||'',engulfingSL:a['SL|Engulfing Candle']||'',
+   nearestSwing:a['SL|Nearest Swing']||'',othersSL:a['SL|Others']||'',
+   rsiTarget:a['Target|RSI Level']||'',oppositeEngulfing:a['Target|Opposite Engulfing Candle']||'',
+   liquidityTarget:a['Target|Liquidity (SL Hunt)']||'',othersTarget:a['Target|Others']||'',
+   preEntryScore:categoryScore(t,groups[0]),entryScore:categoryScore(t,groups[1]),
+   slScore:categoryScore(t,groups[2]),targetScore:categoryScore(t,groups[3]),
+   overallScore:scoreOf(t),lockedAt:t.lockedAt?new Date(t.lockedAt).toISOString():''
+ };
+}
+async function pushTradeToCloud(t,s=getMt5Settings()){
+ if(!s.url||!s.apiKey)return {skipped:true};
+ await apiPost(tradeCloudPayload(t),s);
+ if(hasChecklist(t))await apiPost(checklistCloudPayload(t),s);
+ return {ok:true};
+}
+async function pushAllJournalToCloud(){
+ let s=getMt5Settings();
+ if(!s.url||!s.apiKey){alert('Save your Apps Script URL and API key first.');return}
+ let all=getTrades(),ok=0,failed=0;
+ for(const t of all){
+   try{await pushTradeToCloud(t,s);ok++}catch(e){console.error(e);failed++}
+ }
+ alert(`Journal upload complete: ${ok} uploaded${failed?`, ${failed} failed`:''}.`);
+}
+function checklistFromCloudRow(c){
+ let a={};
+ const map=[
+  ['Pre-Entry|RSI Trend','RSI Trend'],['Pre-Entry|RSI Level','RSI Level'],
+  ['Pre-Entry|Liquidity (SL Hunt)','Liquidity (SL Hunt)'],['Pre-Entry|Engulfing Candle','Engulfing Candle - Pre'],
+  ['Pre-Entry|Divergent','Divergent'],['Entry|OB Entry (On retracement)','OB Entry (On retracement)'],
+  ['Entry|Candle Close Entry','Candle Close Entry'],['SL|Engulfing Candle','Engulfing Candle - SL'],
+  ['SL|Nearest Swing','Nearest Swing'],['SL|Others','Others - SL'],['Target|RSI Level','RSI Level - Target'],
+  ['Target|Opposite Engulfing Candle','Opposite Engulfing Candle'],['Target|Liquidity (SL Hunt)','Liquidity (SL Hunt) - Target'],
+  ['Target|Others','Others - Target']
+ ];
+ map.forEach(([k,h])=>{let v=String(c?.[h]??'');if(v==='Yes'||v==='No')a[k]=v});
+ return a;
+}
+async function pullJournalFromCloud(){
+ let s=getMt5Settings();
+ try{
+   let [tr,cl]=await Promise.all([apiGet('getTrades',s),apiGet('getChecklist',s)]);
+   let checklistById={};(cl.checklist||[]).forEach(c=>checklistById[String(c['Trade ID']||'')]=c);
+   let all=getTrades(),added=0,updated=0;
+   for(const r of (tr.trades||[])){
+     let id=String(r['Trade ID']||'').trim();if(!id)continue;
+     let i=all.findIndex(t=>String(t.id)===id),old=i>=0?all[i]:null,c=checklistById[id];
+     let date=normalizeSheetDate(r['Date']||c?.['Date']||'').slice(0,10);
+     let tm=String(r['Time']||'').trim(),timestamp=date+(tm?`T${tm}`:'T00:00');
+     let answers=c?checklistFromCloudRow(c):(old?.answers||{});
+     let t={
+       id,date,timestamp,mode:String(r['Mode']||c?.['Mode']||old?.mode||'Paper'),
+       script:String(r['Script']||c?.['Script']||old?.script||''),direction:String(r['Direction']||old?.direction||'Buy'),
+       plannedEntry:r['Planned Entry']??old?.plannedEntry??'',plannedSL:r['Planned SL']??old?.plannedSL??'',
+       plannedTarget:r['Planned Target']??old?.plannedTarget??'',answers,beforeImage:old?.beforeImage||'',
+       lockedAt:old?.lockedAt||Date.now(),source:old?.source||'Cloud',
+       mt5:old?.mt5||((r['MT5 Ticket']||'')?{ticket:String(r['MT5 Ticket'])}:undefined),
+       verification:{
+         ...(old?.verification||{}),actualEntry:r['Actual Entry']??'',actualExit:r['Actual Exit']??'',
+         result:String(r['Result']||''),pnl:r['P&L']??'',rr:r['R:R']??'',
+         followed:String(r['Followed Setup']||''),movedSL:String(r['Moved SL']||''),
+         exitedEarly:String(r['Exited Early']||''),notes:String(r['Review Notes']||old?.verification?.notes||''),
+         afterImage:old?.verification?.afterImage||''
+       }
+     };
+     if(i<0){all.unshift(t);added++}else{all[i]={...old,...t};updated++}
+   }
+   putTrades(all);
+   let next={...s,lastSync:new Date().toISOString()};saveMt5Settings(next);
+   alert(`Journal restore complete: ${added} new, ${updated} updated trade(s).`);
+   route='dashboard';render();
+ }catch(err){console.error(err);alert(`Journal restore failed: ${err.message}`)}
 }
 async function syncGoogleSheets(s=getMt5Settings()){
  if(!s.url||!s.apiKey){alert('Enter the Apps Script URL and API key first.');return}
  try{
-   let sep=s.url.includes('?')?'&':'?';
-   let url=`${s.url}${sep}action=getMT5&apiKey=${encodeURIComponent(s.apiKey)}&_=${Date.now()}`;
-   let response=await fetch(url,{cache:'no-store'});
-   if(!response.ok)throw new Error(`HTTP ${response.status}`);
-   let data=await response.json();
-   if(!data.ok)throw new Error(data.error||'API returned an error');
-   let rows=Array.isArray(data.mt5)?data.mt5:[];
-   let all=getTrades(),added=0,updated=0;
+   let data=await apiGet('getMT5',s);
+   let rows=Array.isArray(data.mt5)?data.mt5:[],all=getTrades(),added=0,updated=0,linked=0;
    for(const x of rows){
      let ticket=String(x['MT5 Ticket']||x['Deal ID']||'').trim();
      if(!ticket)continue;
-     let id='mt5-'+ticket;
-     let i=all.findIndex(t=>t.id===id);
+     let id='mt5-'+ticket,i=all.findIndex(t=>t.id===id||String(t.mt5?.ticket||'')===ticket);
      let pnl=Number(x['Net P&L'] ?? x['Profit'] ?? 0);
-     let closed=sheetDate(x['Close Time']||x['Open Time']||new Date().toISOString());
-     let opened=sheetDate(x['Open Time']||closed);
+     let closed=normalizeSheetDate(x['Close Time']||x['Open Time']||localNow());
+     let opened=normalizeSheetDate(x['Open Time']||closed);
      let direction=String(x['Direction']||'').toLowerCase()==='sell'?'Sell':'Buy';
+     let planned=i<0?findPlannedMatch(all,x,direction,closed):null;
+     if(i<0&&planned){i=all.findIndex(t=>t.id===planned.id);id=planned.id;linked++}
+     let old=i>=0?all[i]:null;
      let v={
-       actualEntry:x['Open Price']??'',
-       actualSL:x['SL']??'',
-       actualTarget:x['TP']??'',
-       actualExit:x['Close Price']??'',
-       quantity:x['Volume']??'1',
-       lotSize:'1',
+       ...(old?.verification||{}),
+       actualEntry:x['Open Price']??old?.verification?.actualEntry??'',
+       actualSL:x['SL']??old?.verification?.actualSL??'',
+       actualTarget:x['TP']??old?.verification?.actualTarget??'',
+       actualExit:x['Close Price']??old?.verification?.actualExit??'',
+       quantity:x['Volume']??old?.verification?.quantity??'1',
+       lotSize:old?.verification?.lotSize||'1',
        charges:Math.abs(Number(x['Commission']||0))+Math.abs(Number(x['Swap']||0)),
-       pnl:pnl,
-       result:pnl>0?'Win':pnl<0?'Loss':'Breakeven',
-       followed:'',
-       movedSL:'',
-       exitedEarly:'',
-       notes:'Imported from MT5 via Google Sheets',
-       afterImage:''
+       pnl,result:pnl>0?'Win':pnl<0?'Loss':'Breakeven',
+       notes:old?.verification?.notes||'Imported from MT5 via Google Sheets',
+       afterImage:old?.verification?.afterImage||''
      };
      v.rr=riskReward(v,direction);
      let t={
-       id,
-       mode:'Live',
-       date:closed.slice(0,10),
-       timestamp:closed.slice(0,16),
-       script:String(x['Symbol']||''),
-       direction,
-       plannedEntry:'',
-       plannedSL:'',
-       plannedTarget:'',
-       answers:i>=0?(all[i].answers||{}):{},
-       beforeImage:i>=0?(all[i].beforeImage||''):'',
-       lockedAt:i>=0?(all[i].lockedAt||Date.now()):Date.now(),
-       verification:v,
-       source:'MT5',
+       ...(old||{}),id,mode:old?.mode||'Live',date:closed.slice(0,10),timestamp:closed.slice(0,16),
+       script:String(x['Symbol']||old?.script||''),direction,
+       plannedEntry:old?.plannedEntry||'',plannedSL:old?.plannedSL||'',plannedTarget:old?.plannedTarget||'',
+       answers:old?.answers||{},beforeImage:old?.beforeImage||'',
+       lockedAt:old?.lockedAt||(parseLocalTime(closed)||Date.now()),verification:v,source:'MT5',
        mt5:{
-         ticket,
-         orderId:x['Order ID']||'',
-         dealId:x['Deal ID']||'',
-         symbol:x['Symbol']||'',
-         volume:x['Volume']||'',
-         openTime:opened,
-         closeTime:closed,
-         entry:x['Open Price']??'',
-         exit:x['Close Price']??'',
-         sl:x['SL']??'',
-         target:x['TP']??'',
-         profit:x['Profit']??'',
-         commission:x['Commission']??'',
-         swap:x['Swap']??'',
-         pnl:pnl,
-         comment:x['Comment']||'',
-         magicNumber:x['Magic Number']||'',
-         lastSyncedAt:x['Last Synced At']||''
+         ...(old?.mt5||{}),ticket,orderId:x['Order ID']||'',dealId:x['Deal ID']||'',symbol:x['Symbol']||'',
+         volume:x['Volume']||'',openTime:opened,closeTime:closed,entry:x['Open Price']??'',
+         exit:x['Close Price']??'',sl:x['SL']??'',target:x['TP']??'',profit:x['Profit']??'',
+         commission:x['Commission']??'',swap:x['Swap']??'',pnl,comment:x['Comment']||'',
+         magicNumber:x['Magic Number']||'',lastSyncedAt:x['Last Synced At']||''
        }
      };
-     if(i<0){all.unshift(t);added++}
-     else {all[i]={...all[i],...t,answers:all[i].answers||{},beforeImage:all[i].beforeImage||t.beforeImage};updated++}
+     if(i<0){all.unshift(t);added++}else{all[i]=t;updated++}
    }
    putTrades(all);
-   alert(`Google Sheets MT5 sync complete: ${added} new, ${updated} updated trade(s).`);
+   let next={...s,lastSync:new Date().toISOString()};saveMt5Settings(next);
+   alert(`MT5 sync complete: ${added} new, ${updated} updated${linked?`, ${linked} linked to planned journal trade(s)`:''}.`);
    route='dashboard';render();
  }catch(err){
-   console.error(err);
+   console.error('TradeTrack Google sync error',err);
    alert(`MT5 sync failed: ${err.message}`);
  }
 }
+function equityChart(trades){let data=trades.slice().sort((a,b)=>(a.timestamp||a.date||'').localeCompare(b.timestamp||b.date||'')).map(t=>Number(t.verification?.pnl||0)),running=0,points=[0,...data.map(n=>running+=n)],min=Math.min(...points,0),max=Math.max(...points,0),range=max-min||1,w=320,h=130,pts=points.map((n,i)=>`${8+i*(w-16)/Math.max(1,points.length-1)},${h-18-(n-min)*(h-36)/range}`).join(' '),zero=h-18-(0-min)*(h-36)/range;return data.length?`<svg class="equity-chart" viewBox="0 0 ${w} ${h}" role="img" aria-label="Cumulative profit and loss chart"><line x1="8" x2="${w-8}" y1="${zero}" y2="${zero}"/><polyline points="${pts}"/><text x="8" y="12">Net P&amp;L ${running>=0?'+':''}${fmt(running)}</text><text x="8" y="${h-3}">First</text><text x="${w-42}" y="${h-3}">Latest</text></svg>`:`<div class="empty">Add verified trades with P&amp;L to see your equity curve.</div>`}
+function calendarGrid(trades,month){let first=new Date(month+'-01T12:00:00'),days=new Date(first.getFullYear(),first.getMonth()+1,0).getDate(),start=first.getDay(),byDay={};trades.filter(t=>(t.date||'').startsWith(month)).forEach(t=>{let d=Number((t.date||'').slice(-2));byDay[d]=(byDay[d]||0)+Number(t.verification?.pnl||0)});let cells=Array.from({length:start+days},(_,i)=>{if(i<start)return '<div class="cal-cell empty-day"></div>';let d=i-start+1,p=byDay[d],cls=p>0?'profit-day':p<0?'loss-day':'';return `<div class="cal-cell ${cls}"><b>${d}</b>${p!==undefined?`<small>${p>=0?'+':''}${fmt(p)}</small>`:''}</div>`});return `<div class="calendar-week">${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d=>`<span>${d}</span>`).join('')}</div><div class="calendar-grid">${cells.join('')}</div><p class="hint">Green = profitable day · Red = losing day</p>`}
 function mt5Stats(trades){let x=trades.filter(verified).slice().sort((a,b)=>(a.timestamp||a.date||'').localeCompare(b.timestamp||b.date||'')),p=x.map(t=>Number(t.verification?.pnl||0)),wins=p.filter(n=>n>0),losses=p.filter(n=>n<0),grossProfit=wins.reduce((a,n)=>a+n,0),grossLoss=Math.abs(losses.reduce((a,n)=>a+n,0)),net=p.reduce((a,n)=>a+n,0),latest=x.filter(t=>t.mt5?.balance!==undefined).slice(-1)[0]?.mt5,initial=latest?Number(latest.balance)-net:0,equity=initial,peak=initial,minBalance=initial,maxDD=0,maxDDPct=0,curWin=0,curLoss=0,curWinSum=0,curLossSum=0,maxWin=0,maxLoss=0,maxWinSum=0,maxLossSum=0,winRuns=[],lossRuns=[];for(const n of p){equity+=n;peak=Math.max(peak,equity);minBalance=Math.min(minBalance,equity);let dd=peak-equity;maxDD=Math.max(maxDD,dd);maxDDPct=Math.max(maxDDPct,peak?dd/peak*100:0);if(n>0){if(curLoss){lossRuns.push({count:curLoss,sum:curLossSum});curLoss=curLossSum=0}curWin++;curWinSum+=n;if(curWin>maxWin){maxWin=curWin;maxWinSum=curWinSum}}else if(n<0){if(curWin){winRuns.push({count:curWin,sum:curWinSum});curWin=curWinSum=0}curLoss++;curLossSum+=n;if(curLoss>maxLoss){maxLoss=curLoss;maxLossSum=curLossSum}}else{if(curWin)winRuns.push({count:curWin,sum:curWinSum});if(curLoss)lossRuns.push({count:curLoss,sum:curLossSum});curWin=curLoss=curWinSum=curLossSum=0}}if(curWin)winRuns.push({count:curWin,sum:curWinSum});if(curLoss)lossRuns.push({count:curLoss,sum:curLossSum});let mean=x.length?net/x.length:0,variance=x.length?p.reduce((a,n)=>a+(n-mean)**2,0)/x.length:0,sharpe=variance?mean/Math.sqrt(variance):0,side=dir=>{let a=x.filter(t=>t.direction===dir),w=a.filter(t=>Number(t.verification?.pnl||0)>0).length;return {all:a.length,wins:w,rate:a.length?w/a.length*100:0}};let result={x,p,wins,losses,grossProfit,grossLoss,net,profitFactor:grossLoss?grossProfit/grossLoss:0,expected:mean,avgWin:wins.length?grossProfit/wins.length:0,avgLoss:losses.length?grossLoss/losses.length:0,initial,minBalance,maxDD,maxDDPct,recovery:maxDD?net/maxDD:0,sharpe,maxWin,maxLoss,maxWinSum,maxLossSum,avgWinStreak:winRuns.length?winRuns.reduce((a,r)=>a+r.count,0)/winRuns.length:0,avgLossStreak:lossRuns.length?lossRuns.reduce((a,r)=>a+r.count,0)/lossRuns.length:0,best:Math.max(0,...p),worst:Math.min(0,...p),long:side('Buy'),short:side('Sell')};setTimeout(()=>renderMt5Results(result),0);return result}
 function renderMt5Results(s){let target=$('.equity-chart')?.closest('.card');if(!target)return;target.insertAdjacentHTML('beforebegin',`<div class="section-label">MT5 results</div><div class="card table-responsive"><table class="table"><tbody><tr><th>Total net profit</th><td>${s.net>=0?'+':''}${fmt(s.net)}</td><th>Gross profit</th><td>+${fmt(s.grossProfit)}</td><th>Gross loss</th><td>-${fmt(s.grossLoss)}</td></tr><tr><th>Profit factor</th><td>${s.grossLoss?fmt(s.profitFactor):'—'}</td><th>Expected payoff</th><td>${s.expected>=0?'+':''}${fmt(s.expected)}</td><th>Recovery factor</th><td>${s.maxDD?fmt(s.recovery):'—'}</td></tr><tr><th>Trade Sharpe ratio</th><td>${fmt(s.sharpe)}</td><th>Absolute drawdown</th><td>${fmt(Math.max(0,s.initial-s.minBalance))}</td><th>Maximal drawdown</th><td>${fmt(s.maxDD)} (${fmt(s.maxDDPct)}%)</td></tr><tr><th>Relative drawdown</th><td>${fmt(s.maxDDPct)}% (${fmt(s.maxDD)})</td><th>Profit trades</th><td>${s.wins.length} (${s.x.length?fmt(s.wins.length/s.x.length*100):0}%)</td><th>Loss trades</th><td>${s.losses.length} (${s.x.length?fmt(s.losses.length/s.x.length*100):0}%)</td></tr><tr><th>Max consecutive wins</th><td>${s.maxWin} (+${fmt(s.maxWinSum)})</td><th>Max consecutive losses</th><td>${s.maxLoss} (${fmt(s.maxLossSum)})</td><th>Average consecutive wins</th><td>${fmt(s.avgWinStreak)}</td></tr><tr><th>Average consecutive losses</th><td>${fmt(s.avgLossStreak)}</td><th>Largest profit trade</th><td>+${fmt(s.best)}</td><th>Largest loss trade</th><td>${fmt(s.worst)}</td></tr></tbody></table></div>`) }
 function renderReports(){let all=getTrades(),stocks=[...new Set(all.map(t=>t.script).filter(Boolean))].sort(),ts=dashboardStock==='All'?all:all.filter(t=>t.script===dashboardStock),s=mt5Stats(ts),latest=ts.filter(t=>t.source==='MT5').sort((a,b)=>(b.timestamp||b.date||'').localeCompare(a.timestamp||a.date||''))[0]?.mt5||{};app.innerHTML=heading('MT5 reports',dashboardStock==='All'?'All stocks combined':dashboardStock,`<div class="top-actions"><button class="secondary" id="backToDashboard">Dashboard</button></div>`)+`<div class="card dashboard-filter"><label>View stock<select id="reportStock"><option>All</option>${stocks.map(n=>`<option ${n===dashboardStock?'selected':''}>${esc(n)}</option>`).join('')}</select></label></div><div class="section-label">Account snapshot</div><div class="metric-grid"><div class="metric"><span>Balance</span><b>${latest.balance!==undefined?fmt(latest.balance):'—'}</b></div><div class="metric"><span>Equity</span><b>${latest.equity!==undefined?fmt(latest.equity):'—'}</b></div><div class="metric"><span>Free margin</span><b>${latest.freeMargin!==undefined?fmt(latest.freeMargin):'—'}</b></div></div><div class="section-label">Profit &amp; loss</div><div class="metric-grid"><div class="metric positive"><span>Gross profit</span><b>+${fmt(s.grossProfit)}</b></div><div class="metric negative"><span>Gross loss</span><b>-${fmt(s.grossLoss)}</b></div><div class="metric ${s.net>=0?'positive':'negative'}"><span>Net profit</span><b>${s.net>=0?'+':''}${fmt(s.net)}</b></div><div class="metric"><span>Profit factor</span><b>${s.grossLoss?fmt(s.profitFactor):'—'}</b></div><div class="metric"><span>Expected payoff</span><b>${s.expected>=0?'+':''}${fmt(s.expected)}</b></div><div class="metric"><span>Max drawdown</span><b>-${fmt(s.maxDD)}</b></div></div><div class="section-label">Trade quality</div><div class="metric-grid"><div class="metric"><span>Average win</span><b>+${fmt(s.avgWin)}</b></div><div class="metric"><span>Average loss</span><b>-${fmt(s.avgLoss)}</b></div><div class="metric positive"><span>Largest win</span><b>+${fmt(s.best)}</b></div><div class="metric negative"><span>Largest loss</span><b>${fmt(s.worst)}</b></div><div class="metric"><span>Max win streak</span><b>${s.maxWin}</b></div><div class="metric"><span>Max loss streak</span><b>${s.maxLoss}</b></div></div><div class="section-label">Long / short performance</div><div class="card table-responsive"><table class="table"><thead><tr><th>Direction</th><th>Trades</th><th>Wins</th><th>Win rate</th></tr></thead><tbody><tr><td>Buy / Long</td><td>${s.long.all}</td><td>${s.long.wins}</td><td>${s.long.all?fmt(s.long.rate)+'%':'—'}</td></tr><tr><td>Sell / Short</td><td>${s.short.all}</td><td>${s.short.wins}</td><td>${s.short.all?fmt(s.short.rate)+'%':'—'}</td></tr></tbody></table></div><div class="section-label">Equity curve</div><div class="card">${equityChart(s.x)}</div><p class="hint">Account values appear after you update the MT5 Expert Advisor and sync a newly closed trade. Drawdown is calculated from imported closed-trade P&amp;L.</p>`;$('#reportStock').onchange=e=>{dashboardStock=e.target.value;renderReports()};$('#backToDashboard').onclick=()=>{route='dashboard';render()}}
 function bands(ts){return [{label:'90–100%',test:p=>p>=90},{label:'80–89%',test:p=>p>=80&&p<90},{label:'70–79%',test:p=>p>=70&&p<80},{label:'60–69%',test:p=>p>=60&&p<70},{label:'Below 60%',test:p=>p<60}].map(b=>{const all=ts.filter(t=>b.test(percentOf(t)));return {...b,all,wins:all.filter(t=>t.verification.result==='Win').length}})}
-function tradeRow(t){let p=percentOf(t),v=t.verification||{},hasPnl=v.pnl!==''&&v.pnl!=null,pnl=hasPnl?`${Number(v.pnl)>=0?'+':''}${fmt(v.pnl)}`:'—',rr=v.rr===''||v.rr==null?'—':`1:${fmt(v.rr)}`,loss=v.result==='Loss';return `<div class="trade-card history-trade-card ${loss?'history-loss-card':''}"><div class="history-top"><div><strong>${esc(t.script||'Untitled')}</strong><small>${esc(t.date||'No date')} · ${esc(t.direction)} · ${esc(t.mode)}</small></div><button class="history-open" data-open="${t.id}">Open</button></div><div class="history-middle"><div class="history-score"><span>Score</span><b>${wholePercent(p)}</b></div><div class="history-heads">${groups.map(g=>`<div><span>${g.name}</span><b>${wholePercent(categoryPercent(t,g))}</b></div>`).join('')}</div></div><div class="history-columns history-summary"><div><span>P&amp;L</span><b>${pnl}</b></div><div><span>R:R</span><b>${rr}</b></div><div><span>Result</span><b>${v.result||'Pending'}</b></div><div><span>Plan followed</span><b>${v.followed||'—'}</b></div></div></div>`}
+function tradeRow(t){let checklistPresent=hasChecklist(t),p=percentOf(t),v=t.verification||{},hasPnl=v.pnl!==''&&v.pnl!=null,pnl=hasPnl?`${Number(v.pnl)>=0?'+':''}${fmt(v.pnl)}`:'—',rr=v.rr===''||v.rr==null?'—':`1:${fmt(v.rr)}`,loss=v.result==='Loss';return `<div class="trade-card history-trade-card ${loss?'history-loss-card':''}"><div class="history-top"><div><strong>${esc(t.script||'Untitled')}</strong><small>${esc(t.date||'No date')} · ${esc(t.direction)} · ${esc(t.mode)}</small></div><button class="history-open" data-open="${t.id}">Open</button></div><div class="history-middle"><div class="history-score"><span>Score</span><b>${checklistPresent?wholePercent(p):"—"}</b></div><div class="history-heads">${groups.map(g=>`<div><span>${g.name}</span><b>${checklistPresent?wholePercent(categoryPercent(t,g)):'—'}</b></div>`).join('')}</div></div><div class="history-columns history-summary"><div><span>P&amp;L</span><b>${pnl}</b></div><div><span>R:R</span><b>${rr}</b></div><div><span>Result</span><b>${v.result||'Pending'}</b></div><div><span>Plan followed</span><b>${v.followed||'—'}</b></div></div></div>`}
 function renderTrade(){let ts=getTrades(), t=editingId?(draft||ts.find(x=>x.id===editingId)):null; if(!t)t=draft||emptyTrade(); if(!editingId)draft=t; const locked=false;
  app.innerHTML=heading(editingId?'Edit trade':'New trade','Checklist answers, scores, and actual details can be changed any time.')+
  `<form id="tradeForm">${actualTradeForm(t,locked)}${checklist(t)}<button class="primary" type="submit">${editingId?'Update trade':'Save trade'}</button><p class="hint">Nothing is locked. Open any saved trade from History whenever you want to edit it.</p></form>`+(editingId?`<div class="row-actions"><button class="secondary" id="backHistory">Back to history</button><button class="danger" id="deleteTrade">Delete trade</button></div>`:'');
@@ -172,12 +301,12 @@ function attachTrade(t,locked){let form=$('#tradeForm'), pendingImages={beforeIm
  if(!locked)document.querySelectorAll('[data-answer]').forEach(b=>b.addEventListener('click',()=>{syncDraft(t,form,locked);t.answers[b.dataset.key]=b.dataset.answer;draft=t;renderTrade()}));
  document.querySelectorAll('[data-yn]').forEach(b=>b.addEventListener('click',()=>{t.verification=t.verification||{};t.verification[b.closest('[data-field]').dataset.field]=b.dataset.yn; b.closest('.segmented')?.querySelectorAll('button').forEach(x=>x.classList.toggle('selected',x===b))}));
  document.querySelectorAll('[data-image]').forEach(input=>input.addEventListener('change',e=>{syncDraft(t,form,locked);compressImage(e.target.files[0]).then(x=>{pendingImages[e.target.dataset.image]=x;if(e.target.dataset.image==='beforeImage')t.beforeImage=x;else{t.verification=t.verification||{};t.verification.afterImage=x}draft=t;renderTrade()})}));
- form?.addEventListener('submit',e=>{e.preventDefault();let f=new FormData(form);['date','timestamp','script','direction'].forEach(k=>t[k]=f.get(k));t.beforeImage=pendingImages.beforeImage;t.verification={...t.verification,actualEntry:f.get('actualEntry'),actualSL:f.get('actualSL'),actualTarget:f.get('actualTarget'),actualExit:f.get('actualExit'),quantity:f.get('quantity'),lotSize:f.get('lotSize'),charges:f.get('charges'),result:f.get('result'),notes:f.get('notes'),afterImage:pendingImages.afterImage};t.verification.pnl=calculatedPnl(t.verification,t.direction);t.verification.rr=riskReward(t.verification,t.direction);let all=getTrades(),i=all.findIndex(x=>x.id===t.id);if(i<0)all.unshift(t);else all[i]=t;putTrades(all);editingId=t.id;draft=null;route='history';render()});
+ form?.addEventListener('submit',e=>{e.preventDefault();let f=new FormData(form);['date','timestamp','script','direction'].forEach(k=>t[k]=f.get(k));t.beforeImage=pendingImages.beforeImage;t.verification={...t.verification,actualEntry:f.get('actualEntry'),actualSL:f.get('actualSL'),actualTarget:f.get('actualTarget'),actualExit:f.get('actualExit'),quantity:f.get('quantity'),lotSize:f.get('lotSize'),charges:f.get('charges'),result:f.get('result'),notes:f.get('notes'),afterImage:pendingImages.afterImage};t.verification.pnl=calculatedPnl(t.verification,t.direction);t.verification.rr=riskReward(t.verification,t.direction);let all=getTrades(),i=all.findIndex(x=>x.id===t.id);if(i<0)all.unshift(t);else all[i]=t;putTrades(all);pushTradeToCloud(t).catch(err=>console.warn('Cloud backup pending:',err));editingId=t.id;draft=null;route='history';render()});
  $('#backHistory')?.addEventListener('click',()=>{route='history';render()}); $('#deleteTrade')?.addEventListener('click',()=>{if(confirm('Delete this trade permanently from this device?')){putTrades(getTrades().filter(x=>x.id!==t.id));editingId=null;route='history';render()}});
 }
 function compressImage(file){if(!file)return Promise.resolve('');return new Promise(resolve=>{let r=new FileReader();r.onload=()=>{let im=new Image();im.onload=()=>{let max=900,s=Math.min(1,max/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=im.width*s;c.height=im.height*s;c.getContext('2d').drawImage(im,0,0,c.width,c.height);resolve(c.toDataURL('image/jpeg',.72))};im.src=r.result};r.readAsDataURL(file)})}
 function renderHistory(){const ts=getTrades().slice().sort((a,b)=>b.lockedAt-a.lockedAt), modes=['All','Backtest','Paper','Live'];let x=historyFilter==='All'?ts:ts.filter(t=>t.mode===historyFilter);app.innerHTML=heading('Trade history','Open a record to verify or review it',`<div class="top-actions"><button class="secondary" id="csvBtn">CSV</button><button class="secondary" id="importBtn">Restore</button></div>`)+`<div class="filter-row">${modes.map(m=>`<button data-filter="${m}" class="${m===historyFilter?'active':''}">${m}</button>`).join('')}</div><div class="card">${x.length?x.map(tradeRow).join(''):`<div class="empty">No ${historyFilter==='All'?'':historyFilter+' '}trades saved yet.</div>`}</div>`;document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{historyFilter=b.dataset.filter;renderHistory()});document.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>{editingId=b.dataset.open;draft=null;route='new';render()});$('#csvBtn').onclick=exportCSV;$('#importBtn').onclick=()=>$('#importFile').click()}
-function renderAnalysis(){const done=getTrades().filter(verified), items=groups.flatMap(g=>g.items.map(([n,w])=>({group:g.name,name:n,w,key:g.name+'|'+n}))); app.innerHTML=heading('Strategy analysis','Find which rules deserve your trust')+`<div class="card"><h2>Checklist-item performance</h2>${done.length?items.map(i=>{let have=done.filter(t=>t.answers[i.key]==='Yes'),w=have.filter(t=>t.verification.result==='Win').length,l=have.filter(t=>t.verification.result==='Loss').length,wr=have.length?w/have.length*100:0;return `<div class="analysis-item"><div class="bar-row"><span>${i.name}<br><small>${i.group} · WT ${i.w}</small></span><div class="bar"><i style="width:${wr}%"></i></div><b>${fmt(wr)}%</b></div><small>${have.length} present · ${w} wins · ${l} losses</small></div>`}).join(''):`<div class="empty">Verify some trades first; then this view will reveal performance by checklist item.</div>`}</div><div class="card"><h2>Score vs win rate</h2>${done.length?bands(done).map(x=>{let wr=x.all.length?x.wins/x.all.length*100:0;return `<div class="bar-row"><span>${x.label}</span><div class="bar"><i style="width:${wr}%"></i></div><b>${x.all.length?fmt(wr)+'%':'—'}</b></div>`}).join(''):`<div class="empty">No verified trades yet.</div>`}</div><div class="notice">Only verified trades are included, so the analysis does not mistake unreviewed ideas for outcomes.</div>`}
+function renderAnalysis(){const done=getTrades().filter(t=>verified(t)&&hasChecklist(t)), items=groups.flatMap(g=>g.items.map(([n,w])=>({group:g.name,name:n,w,key:g.name+'|'+n}))); app.innerHTML=heading('Strategy analysis','Find which rules deserve your trust')+`<div class="card"><h2>Checklist-item performance</h2>${done.length?items.map(i=>{let have=done.filter(t=>t.answers[i.key]==='Yes'),w=have.filter(t=>t.verification.result==='Win').length,l=have.filter(t=>t.verification.result==='Loss').length,wr=have.length?w/have.length*100:0;return `<div class="analysis-item"><div class="bar-row"><span>${i.name}<br><small>${i.group} · WT ${i.w}</small></span><div class="bar"><i style="width:${wr}%"></i></div><b>${fmt(wr)}%</b></div><small>${have.length} present · ${w} wins · ${l} losses</small></div>`}).join(''):`<div class="empty">Verify some trades first; then this view will reveal performance by checklist item.</div>`}</div><div class="card"><h2>Score vs win rate</h2>${done.length?bands(done).map(x=>{let wr=x.all.length?x.wins/x.all.length*100:0;return `<div class="bar-row"><span>${x.label}</span><div class="bar"><i style="width:${wr}%"></i></div><b>${x.all.length?fmt(wr)+'%':'—'}</b></div>`}).join(''):`<div class="empty">No verified trades yet.</div>`}</div><div class="notice">Only verified trades are included, so the analysis does not mistake unreviewed ideas for outcomes.</div>`}
 function exportCSV(){let ts=getTrades(),headers=['ID','Mode','Date','Timestamp','Script','Direction','Score / 15','Score %','Result','Actual Entry','Actual Stop Loss','Actual Target','Actual Exit','Lots / Quantity','Lot Size','Charges','P&L','R:R','Followed Setup','Moved SL','Exited Early','Review Notes',...groups.flatMap(g=>g.items.map(([n])=>g.name+' — '+n))];let rows=ts.map(t=>[t.id,t.mode,t.date,t.timestamp,t.script,t.direction,scoreOf(t),percentOf(t).toFixed(2),t.verification?.result,t.verification?.actualEntry,t.verification?.actualSL,t.verification?.actualTarget,t.verification?.actualExit,t.verification?.quantity,t.verification?.lotSize,t.verification?.charges,t.verification?.pnl,t.verification?.rr,t.verification?.followed,t.verification?.movedSL,t.verification?.exitedEarly,t.verification?.notes,...groups.flatMap(g=>g.items.map(([n])=>t.answers[g.name+'|'+n]||''))]);download('tradetrack-ai-backup-'+new Date().toISOString().slice(0,10)+'.csv',[headers,...rows].map(r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\n'),'text/csv')}
 function backupJSON(){download('tradetrack-ai-full-backup-'+new Date().toISOString().slice(0,10)+'.json',JSON.stringify({app:'TradeTrack AI',version:2,trades:getTrades()},null,2),'application/json')}
 function download(name,text,type){let a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
