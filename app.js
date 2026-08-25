@@ -21,7 +21,7 @@ const categoryScore=(t,g)=>g.items.reduce((a,[name,w])=>a+(t.answers?.[g.name+'|
 const categoryPercent=(t,g)=>g.total?categoryScore(t,g)/g.total*100:0;
 const hasChecklist=t=>Object.values(t?.answers||{}).some(v=>v==='Yes'||v==='No');
 const wholePercent=n=>`${Math.round(Number(n)||0)}%`;
-function riskReward(v,direction){let entry=Number(v?.actualEntry),sl=Number(v?.actualSL),target=Number(v?.actualTarget);if(!Number.isFinite(entry)||!Number.isFinite(sl)||!Number.isFinite(target)||entry===sl)return '';let risk=Math.abs(entry-sl),reward=direction==='Sell'?entry-target:target-entry;return reward>0?reward/risk:''}
+function riskReward(v,direction){if(v?.actualEntry===''||v?.actualEntry==null||v?.actualSL===''||v?.actualSL==null||v?.actualTarget===''||v?.actualTarget==null)return '';let entry=Number(v.actualEntry),sl=Number(v.actualSL),target=Number(v.actualTarget);if(!Number.isFinite(entry)||!Number.isFinite(sl)||!Number.isFinite(target)||entry===sl)return '';let risk=Math.abs(entry-sl),reward=direction==='Sell'?entry-target:target-entry;return reward>0?reward/risk:''}
 function calculatedPnl(v,direction){if(v?.actualEntry===''||v?.actualEntry==null||v?.actualExit===''||v?.actualExit==null||v?.quantity===''||Number(v?.quantity)<=0||v?.lotSize===''||Number(v?.lotSize||1)<=0)return '';let entry=Number(v.actualEntry),exit=Number(v.actualExit),quantity=Number(v.quantity),lotSize=Number(v.lotSize||1),charges=Number(v.charges||0);if(!Number.isFinite(entry)||!Number.isFinite(exit)||!Number.isFinite(quantity)||!Number.isFinite(lotSize)||!Number.isFinite(charges))return '';return (direction==='Sell'?entry-exit:exit-entry)*quantity*lotSize-charges}
 function monthLabel(month){return new Date(month+'-01T12:00:00').toLocaleDateString(undefined,{month:'long',year:'numeric'})}
 function qualification(p){return p>=80?'A+ Setup':p>=70?'A Setup':p>=60?'B Setup':'Avoid'}
@@ -74,7 +74,7 @@ function renderDashboard(){
     <div class="metric ${pnl>=0?'positive':'negative'}"><span>Net P&amp;L</span><b>${signedMoney(pnl,cur)}</b></div>`;
 
  app.innerHTML=heading('Dashboard',(dashboardStock==='All'?'All stocks':dashboardStock)+' · '+(dashboardCurrency==='All'?'INR & USD separate':dashboardCurrency),
- `<div class="top-actions"><button class="secondary" id="reportsBtn">Reports</button><button class="secondary" id="syncMt5Btn">MT5 Sync</button><button class="secondary" id="backupBtn">Backup</button></div>`)+
+ `<div class="top-actions"><button class="secondary" id="reportsBtn">Reports</button><button class="secondary" id="syncMt5Btn">Broker Sync</button><button class="secondary" id="backupBtn">Backup</button></div>`)+
  `<div class="card dashboard-filter"><label>View stock<select id="dashboardStock"><option>All</option>${stocks.map(s=>`<option ${s===dashboardStock?'selected':''}>${esc(s)}</option>`).join('')}</select></label>
  <label>Currency<select id="dashboardCurrency"><option value="All" ${dashboardCurrency==='All'?'selected':''}>All (keep separate)</option><option ${dashboardCurrency==='INR'?'selected':''}>INR</option><option ${dashboardCurrency==='USD'?'selected':''}>USD</option></select></label></div>
  <div class="metric-grid"><div class="metric"><span>Total trades</span><b>${ts.length}</b></div><div class="metric positive"><span>Wins</span><b>${wins.length}</b></div><div class="metric negative"><span>Losses</span><b>${losses.length}</b></div><div class="metric"><span>Breakeven</span><b>${be.length}</b></div><div class="metric positive"><span>Win rate</span><b>${fmt(wr)}%</b></div><div class="metric"><span>Avg score</span><b>${fmt(avg)}%</b></div><div class="metric positive"><span>Avg win score</span><b>${fmt(aw)}%</b></div><div class="metric negative"><span>Avg loss score</span><b>${fmt(al)}%</b></div>${moneyMetrics}</div>`+
@@ -94,9 +94,20 @@ function renderDashboard(){
 function getMt5Settings(){try{return JSON.parse(localStorage.getItem(MT5_SYNC_KEY)||'{}')}catch{return{}}}
 function saveMt5Settings(s){localStorage.setItem(MT5_SYNC_KEY,JSON.stringify(s))}
 function renderSyncSettings(){
- let s=getMt5Settings(),last=s.lastSync?new Date(s.lastSync).toLocaleString():'Never';
- app.innerHTML=heading('Google Sheets sync','MT5 + journal backup in your TradeTrack AI Database')+
- `<div class="card"><form id="mt5Settings">
+ let s=getMt5Settings(),last=s.lastSync?new Date(s.lastSync).toLocaleString():'Never',today=localNow().slice(0,10),from=new Date(Date.now()-30*86400000).toISOString().slice(0,10);
+ app.innerHTML=heading('Broker & cloud sync','Import broker trades and back up your TradeTrack journal')+
+ `<div class="card"><h2>FundedNext Demo · MCP</h2>
+ <p id="fundedNextStatus" class="hint">Checking the private FundedNext connection…</p>
+ <form id="fundedNextSync"><div class="form-grid">
+ <label>From date<input name="fromDate" type="date" value="${from}"></label>
+ <label>To date<input name="toDate" type="date" value="${today}"></label>
+ </div>
+ <button class="secondary" id="testFundedNext" type="button">Test FundedNext connection</button>
+ <button class="primary" type="submit">Sync FundedNext trade history</button>
+ </form>
+ <p class="hint">FundedNext is accessed securely through your private Google Apps Script settings. No MCP link or token is stored in this public app.</p>
+ </div>
+ <div class="card"><h2>Google Sheets / MT5 bridge</h2><form id="mt5Settings">
  <label>Apps Script URL<input name="url" value="${esc(s.url||'https://script.google.com/macros/s/AKfycbyMkVzqfADdBgzlzmjDdkPSR8-CFOjT_KQ8YbBQLn2R3UPyDrud0F6SBVSFTOdyKYE/exec')}" placeholder="https://script.google.com/macros/s/.../exec"></label>
  <label>API Key<input name="apiKey" type="password" value="${esc(s.apiKey||'')}" placeholder="TradeTrack API key" autocomplete="off"></label>
  <button class="primary">Save settings &amp; sync MT5</button>
@@ -108,6 +119,15 @@ function renderSyncSettings(){
  <button class="secondary" id="pullJournal">Restore / merge journal from Google Sheets</button>
  <p class="hint">Trade details and checklist answers are backed up to Sheets. New screenshots are uploaded to your private TradeTrack AI Screenshots folder in Google Drive.</p></div>
  <button class="secondary" id="backDashboard">Back to dashboard</button>`;
+ $('#testFundedNext').onclick=async()=>{
+   if(!s.url||!s.apiKey){alert('Save the Apps Script URL and API key first.');return}
+   try{let data=await apiPost({action:'testFundedNext'},s),names=(data.tools||[]).map(x=>x.name).filter(Boolean);alert(`FundedNext MCP connected.${names.length?' Available tools: '+names.join(', '):''}`);await loadFundedNextStatus(s)}catch(err){console.error(err);alert(`FundedNext connection test failed: ${err.message}`)}
+ };
+ $('#fundedNextSync').onsubmit=async e=>{
+   e.preventDefault();if(!s.url||!s.apiKey){alert('Save the Apps Script URL and API key first.');return}
+   let button=e.target.querySelector('[type="submit"]'),f=new FormData(e.target);button.disabled=true;
+   try{let result=await apiPost({action:'syncFundedNext',fromDate:String(f.get('fromDate')||''),toDate:String(f.get('toDate')||'')},s);$('#fundedNextStatus').textContent=`FundedNext history saved: ${result.added||0} new, ${result.updated||0} updated. Importing into this device…`;await syncGoogleSheets(s)}catch(err){console.error(err);alert(`FundedNext sync failed: ${err.message}`);button.disabled=false}
+ };
  $('#mt5Settings').onsubmit=async e=>{
    e.preventDefault();
    let f=new FormData(e.target),next={...s,url:String(f.get('url')||'').trim(),apiKey:String(f.get('apiKey')||'').trim()};
@@ -117,6 +137,12 @@ function renderSyncSettings(){
  $('#pushJournal').onclick=async()=>{await pushAllJournalToCloud()};
  $('#pullJournal').onclick=async()=>{await pullJournalFromCloud()};
  $('#backDashboard').onclick=()=>{route='dashboard';render()}
+ loadFundedNextStatus(s);
+}
+async function loadFundedNextStatus(s=getMt5Settings()){
+ let target=$('#fundedNextStatus');if(!target)return;
+ if(!s.url||!s.apiKey){target.textContent='Save the Apps Script URL and API key below to check FundedNext.';return}
+ try{let data=await apiGet('fundedNextStatus',s);target.textContent=data.configured?`Configured${data.accountId?' · Account '+data.accountId:''} · History tool: ${data.historyTool||'Auto-detect'} · Last sync: ${data.lastSync?new Date(data.lastSync).toLocaleString():'Never'}`:'Not configured. Add the private FundedNext MCP link in Apps Script Script Properties.'}catch(err){target.textContent='Unable to read FundedNext status: '+err.message}
 }
 function normalizeSheetDate(v){
  if(v===null||v===undefined||v==='')return '';

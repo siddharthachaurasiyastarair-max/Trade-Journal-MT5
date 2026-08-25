@@ -1,4 +1,12 @@
-# TradeTrack AI v32 — Compact Blue History Cards
+# TradeTrack AI v33 — FundedNext MCP Sync
+
+- Added an optional FundedNext Demo connection through the existing private Apps Script backend.
+- Added connection testing, status display, date-range selection, and trade-history sync.
+- Imports read-only FundedNext trade history from `MT5_Data` into the local journal and updates matching tickets.
+- Keeps the existing Google Sheets / MT5 bridge and journal backup unchanged.
+- MCP links and tokens remain in private Apps Script Properties and are never stored in GitHub.
+
+## Previous v32 changes
 
 - Screenshots can now be viewed inside the TradeTrack app in a full-screen modal.
 - Works for local screenshots and private Google Drive screenshots.

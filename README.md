@@ -1,4 +1,14 @@
-# TradeTrack AI v30
+# TradeTrack AI v33
+
+## FundedNext Demo MCP sync
+
+Open **Dashboard → Broker Sync**. The app provides **Test FundedNext connection** and **Sync FundedNext trade history** with a selectable date range.
+
+The public GitHub Pages app calls the existing private Google Apps Script backend. The backend uses the official FundedNext MCP Streamable HTTP connection and saves normalized trades in `MT5_Data`; the app then imports them into the local journal. FundedNext access is read-only and cannot place trades or move funds.
+
+In Apps Script **Project Settings → Script Properties**, keep the private values under `FUNDEDNEXT_MCP_URL`, optional `FUNDEDNEXT_MCP_TOKEN`, and `FUNDEDNEXT_ACCOUNT_ID`. Never put the MCP link, token, TradeTrack API key, or EA credentials in GitHub.
+
+The existing Google Sheets / MT5 bridge remains available on the same screen.
 
 ## Apps Script update required
 Replace `Code.gs` with the included file. Select `authorizeAndTestDrive`, click **Run**, approve Drive access, and confirm the execution log says `Drive access OK`.
