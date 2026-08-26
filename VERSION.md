@@ -1,4 +1,18 @@
-# TradeTrack AI v35 — Market Filters and Bulk Delete
+# TradeTrack AI v37 — Cleaner Execution Grid
+
+- Removed Opened and Closed timestamps from History cards.
+- The timestamps remain stored and available inside the full trade record.
+
+## Previous v36 changes
+
+- Removed default selection checkboxes and the always-visible selection bar.
+- Added swipe-left-to-delete on individual History cards.
+- Kept multi-delete behind a clean Manage / Done mode.
+- Reorganized cards into a readable header, score/checklist row, execution grid, and result summary.
+- Prevented long prices, tickets, and timestamps from colliding or forcing narrow broken columns.
+- Uses two execution columns on phones and four on wider screens.
+
+## Previous v35 changes
 
 - Added All / Indian / Forex filters to Dashboard, Analysis, and History.
 - Added an instrument sub-filter with All instruments under every market view.

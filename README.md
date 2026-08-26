@@ -1,4 +1,12 @@
-# TradeTrack AI v35
+# TradeTrack AI v37
+
+History cards no longer display Opened and Closed timestamps. Those values remain safely stored in each MT5 record and are available when the trade is opened.
+
+## Compact History and deletion
+
+History no longer shows selection controls by default. Swipe a card left and tap **Delete** for a single record. For multiple records, tap **Manage**, select the required trades, and tap **Delete**; tap **Done** to return to the normal compact view.
+
+The card layout adapts to screen size: execution details use four columns on wider screens and two columns on phones, preventing ticket, price, and timestamp values from overlapping.
 
 ## New filters and multi-delete
 
