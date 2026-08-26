@@ -1,4 +1,34 @@
-# TradeTrack AI v37 — Cleaner Execution Grid
+# TradeTrack AI v42 — Whole Percentage Display
+
+- Dashboard and Analysis percentages now display as rounded whole numbers.
+- Calculations retain full internal precision; only the presentation is rounded.
+
+## Previous v41 changes
+
+- Dashboard metrics use every trade matching the selected filters, not only Recent trades.
+- Added Till date, Today, Last 7 days, Last 30 days, This month, and This year.
+- Till date is the default and excludes future-dated records.
+- The selected period applies consistently to metrics, ratios, score bands, charts, calendar data, and Recent trades.
+
+## Previous v40 changes
+
+- Actual trade & execution now sets INR automatically for India.
+- Actual trade & execution now sets USD automatically for Forex.
+- Currency updates immediately when the Market selection changes.
+
+## Previous v39 changes
+
+- NIFTY and its common variants now appear under Indian instead of Forex.
+- Added recognition for BANKNIFTY, FINNIFTY, MIDCPNIFTY, SENSEX, BANKEX, NSE-prefixed, BSE-prefixed, `.NS`, and `.BO` symbols.
+- Recognized Indian symbols use INR even when an older MT5 import stored the Forex/USD defaults.
+- The next MT5 sync also corrects the saved Market and Currency fields.
+
+## Previous v38 changes
+
+- Applied the same clean, compact card layout to Dashboard Recent trades.
+- Recent trades retain the Open action without swipe-delete controls.
+
+## Previous v37 changes
 
 - Removed Opened and Closed timestamps from History cards.
 - The timestamps remain stored and available inside the full trade record.

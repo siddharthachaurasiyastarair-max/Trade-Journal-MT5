@@ -1,4 +1,14 @@
-# TradeTrack AI v37
+# TradeTrack AI v42
+
+Percentage details are displayed as whole values, such as 67% instead of 66.67%. Calculations still retain full precision internally.
+
+Dashboard statistics are calculated from all trades matching Market, Instrument, and Time filters. Recent trades only displays the latest five from that same filtered set. The default Time period is Till date.
+
+In Actual trade & execution, Market controls the default currency automatically: India → INR and Forex → USD.
+
+NIFTY-family and other recognized Indian-market symbols are classified under Indian/INR even if an earlier MT5 import assigned Forex/USD. Run MT5 Sync once to persist the corrected market and currency values.
+
+Dashboard Recent trades now use the same organised, responsive card design as Trade History. Swipe deletion remains available only in Trade History.
 
 History cards no longer display Opened and Closed timestamps. Those values remain safely stored in each MT5 record and are available when the trade is opened.
 
