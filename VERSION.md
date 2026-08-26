@@ -1,4 +1,24 @@
-# TradeTrack AI v33 — FundedNext MCP Sync
+# TradeTrack AI v35 — Market Filters and Bulk Delete
+
+- Added All / Indian / Forex filters to Dashboard, Analysis, and History.
+- Added an instrument sub-filter with All instruments under every market view.
+- Replaced the Dashboard currency selector with the requested market selector; Indian automatically uses INR and Forex uses USD.
+- Added History multi-select, Select all shown, selected count, confirmation, and bulk deletion.
+- Deleted MT5 identities remain hidden after later syncs on the same device.
+- Kept trade-mode filtering in History alongside the new market and instrument filters.
+
+## Previous v34 changes
+
+- Fixed the desktop/iPhone mismatch: each device now pulls shared MT5 history from Google Sheets after cloud settings are configured.
+- Added a fresh service-worker cache so the iPhone Home Screen app loads the corrected code.
+- Uses account + closing deal ID as the MT5 identity; partial closes remain separate records.
+- Falls back to a deterministic position/time/symbol/volume/exit identity when a deal ID is absent.
+- Preserves local checklist answers, screenshots, Drive URLs, market, currency, and journal fields while updating execution data.
+- Links at most one closing deal to each planned journal record; additional partial closes remain visible as MT5-only trades.
+- MT5 Sync now reports Fetched, New, Updated, Linked to journal, Skipped, and Errors separately.
+- Valid closed deals are always stored in History. Checklist analysis remains limited to verified trades that actually have checklist answers.
+
+## Previous v33 changes
 
 - Added an optional FundedNext Demo connection through the existing private Apps Script backend.
 - Added connection testing, status display, date-range selection, and trade-history sync.

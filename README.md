@@ -1,4 +1,22 @@
-# TradeTrack AI v33
+# TradeTrack AI v35
+
+## New filters and multi-delete
+
+Dashboard, Analysis, and History now use the same two-level filter: choose **All**, **Indian**, or **Forex**, then choose **All instruments** or a specific instrument available within that market. Indian views use INR metrics and Forex views use USD metrics; All keeps the currencies separate.
+
+In History, select individual trades or use **Select all shown**, then press **Delete selected**. Only selected records are removed after confirmation. Deleted MT5 deal identities remain hidden during later syncs on that device.
+
+## Important: desktop and iPhone storage
+
+The desktop browser and iPhone Home Screen app have separate local storage. Google Sheets is the shared MT5 source. On each device, open **Dashboard → Broker Sync**, save the same Apps Script `/exec` URL and API key, then run **Save settings & sync MT5** once. After that, the app refreshes MT5 history from Sheets when opened (at most once every five minutes).
+
+The sync result shows separate counts for **Fetched**, **New**, **Updated**, **Linked to journal**, **Skipped**, and **Errors**. Every valid closed MT5 deal is kept at deal level in History, including partial closes and MT5-only records.
+
+## Deployment
+
+Upload `index.html`, `app.js`, `styles.css`, `sw.js`, `manifest.json`, and the existing icon files to the GitHub Pages repository. This web-only correction does not require a new `Code.gs` if the current Apps Script already supports `getMT5`.
+
+On iPhone, open the GitHub Pages URL in Safari and refresh it. Close and reopen the Home Screen app. If it still shows the old version, remove the Home Screen icon, clear Safari website data for the site, open the URL again, and use **Add to Home Screen**.
 
 ## FundedNext Demo MCP sync
 

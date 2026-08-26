@@ -1,6 +1,7 @@
 /* TradeTrack AI: all data stays on this device in localStorage. */
 const KEY='tradetrack_ai_v2_records';
 const MT5_SYNC_KEY='tradetrack_mt5_sync_settings';
+const DELETED_KEY='tradetrack_deleted_trade_ids';
 const groups=[
  {name:'Pre-Entry',total:9,items:[['RSI Trend',2],['RSI Level',2],['Liquidity (SL Hunt)',2],['Engulfing Candle',2],['Divergent',1]]},
  {name:'Entry',total:2,items:[['OB Entry (On retracement)',2],['Candle Close Entry',1]]},
@@ -8,9 +9,11 @@ const groups=[
  {name:'Target',total:2,items:[['RSI Level',2],['Opposite Engulfing Candle',2],['Liquidity (SL Hunt)',2],['Others',1]]}
 ];
 const $=s=>document.querySelector(s), app=$('#app');
-let route='dashboard', historyFilter='All', editingId=null, draft=null, dashboardStock='All', dashboardCurrency='All', calendarMonth=localNow().slice(0,7);
+let route='dashboard', historyFilter='All', editingId=null, draft=null, dashboardStock='All', dashboardMarket='All', historyMarket='All', historyStock='All', analysisMarket='All', analysisStock='All', selectedHistoryIds=new Set(), calendarMonth=localNow().slice(0,7);
 const getTrades=()=>{try{return JSON.parse(localStorage.getItem(KEY)||'[]')}catch{return[]}};
 const putTrades=x=>localStorage.setItem(KEY,JSON.stringify(x));
+const getDeletedIds=()=>{try{return new Set(JSON.parse(localStorage.getItem(DELETED_KEY)||'[]'))}catch{return new Set()}};
+const putDeletedIds=x=>{let all=getTrades();for(const id of [...x]){let t=all.find(v=>String(v.id)===String(id)),identity=existingMt5Identity(t);if(identity)x.add('mt5:'+identity)}localStorage.setItem(DELETED_KEY,JSON.stringify([...x]))};
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const fmt=n=>Number(n||0).toLocaleString(undefined,{maximumFractionDigits:2});
@@ -28,6 +31,9 @@ function qualification(p){return p>=80?'A+ Setup':p>=70?'A Setup':p>=60?'B Setup
 function localNow(){let d=new Date(),z=d.getTimezoneOffset()*60000;return new Date(d-z).toISOString()}
 function emptyTrade(){let now=localNow();return {id:uid(),mode:'Paper',market:'India',currency:'INR',date:now.slice(0,10),timestamp:now.slice(0,16),script:'',direction:'Buy',plannedEntry:'',plannedSL:'',plannedTarget:'',answers:{},beforeImage:'',beforeImageUrl:'',lockedAt:null,verification:{actualEntry:'',actualExit:'',quantity:'1',lotSize:'1',charges:'',result:'',pnl:'',rr:'',followed:'',movedSL:'',exitedEarly:'',notes:'',afterImage:'',afterImageUrl:''}}}
 function tradeCurrency(t){return String(t?.currency||((t?.source==='MT5'||t?.mt5?.ticket)?'USD':'INR')).toUpperCase()==='USD'?'USD':'INR'}
+function tradeMarket(t){let m=String(t?.market||'').toLowerCase();if(m==='forex'||tradeCurrency(t)==='USD')return 'Forex';return 'India'}
+function filterTrades(all,market,stock){let byMarket=market==='All'?all:all.filter(t=>tradeMarket(t)===market);return stock==='All'?byMarket:byMarket.filter(t=>t.script===stock)}
+function marketFilters(all,market,stock,prefix){let marketTrades=market==='All'?all:all.filter(t=>tradeMarket(t)===market),stocks=[...new Set(marketTrades.map(t=>t.script).filter(Boolean))].sort();return `<div class="card dashboard-filter"><label>Market<select id="${prefix}Market"><option value="All" ${market==='All'?'selected':''}>All</option><option value="India" ${market==='India'?'selected':''}>Indian</option><option value="Forex" ${market==='Forex'?'selected':''}>Forex</option></select></label><label>Instrument<select id="${prefix}Stock"><option value="All">All instruments</option>${stocks.map(s=>`<option value="${esc(s)}" ${s===stock?'selected':''}>${esc(s)}</option>`).join('')}</select></label></div>`}
 function moneyFmt(n,c){let x=Number(n||0);return (c==='USD'?'$':'₹')+Math.abs(x).toLocaleString(undefined,{maximumFractionDigits:2,minimumFractionDigits:2})}
 function signedMoney(n,c){let x=Number(n||0);return (x<0?'-':x>0?'+':'')+moneyFmt(x,c)}
 function migrateLegacy(){if(localStorage.getItem(KEY)!==null)return;try{let legacy=JSON.parse(localStorage.getItem('tradetrack_records')||'[]');if(!Array.isArray(legacy)||!legacy.length)return;putTrades(legacy.map(x=>{let t=emptyTrade();t.id=x.id||uid();t.date=x.date||t.date;t.timestamp=x.timestamp||x.dateTime||t.timestamp;t.script=x.script||x.stock||x.symbol||'';t.direction=x.direction||x.side||t.direction;t.mode=x.mode||t.mode;t.market=x.market||((x.source==='MT5'||x.mt5?.ticket)?'Forex':'India');t.currency=x.currency||((x.source==='MT5'||x.mt5?.ticket)?'USD':'INR');t.answers=x.answers||x.responses||{};t.plannedEntry=x.plannedEntry||x.entry||'';t.plannedSL=x.plannedSL||x.stopLoss||'';t.plannedTarget=x.plannedTarget||x.target||'';t.lockedAt=x.lockedAt||x.createdAt||Date.now();t.verification={...t.verification,result:x.result||x.outcome||'',pnl:x.pnl||''};return t}))}catch{ /* The previous app data is left untouched if it cannot be read. */ }}
@@ -37,9 +43,8 @@ function render(){nav(); if(route==='new')renderTrade(); else if(route==='histor
 function verified(t){return ['Win','Loss','Breakeven'].includes(t.verification?.result)}
 function renderDashboard(){
  const all=getTrades(),
- stocks=[...new Set(all.map(t=>t.script).filter(Boolean))].sort(),
- byStock=dashboardStock==='All'?all:all.filter(t=>t.script===dashboardStock),
- ts=dashboardCurrency==='All'?byStock:byStock.filter(t=>tradeCurrency(t)===dashboardCurrency),
+ ts=filterTrades(all,dashboardMarket,dashboardStock),
+ dashboardCurrency=dashboardMarket==='India'?'INR':dashboardMarket==='Forex'?'USD':'All',
  done=ts.filter(verified),wins=done.filter(t=>t.verification.result==='Win'),
  losses=done.filter(t=>t.verification.result==='Loss'),be=done.filter(t=>t.verification.result==='Breakeven'),
  pnlOf=t=>Number(t.verification?.pnl||0),
@@ -73,11 +78,10 @@ function renderDashboard(){
     <div class="metric negative"><span>Total loss</span><b>-${moneyFmt(grossLoss,cur)}</b></div>
     <div class="metric ${pnl>=0?'positive':'negative'}"><span>Net P&amp;L</span><b>${signedMoney(pnl,cur)}</b></div>`;
 
- app.innerHTML=heading('Dashboard',(dashboardStock==='All'?'All stocks':dashboardStock)+' · '+(dashboardCurrency==='All'?'INR & USD separate':dashboardCurrency),
+ app.innerHTML=heading('Dashboard',(dashboardMarket==='All'?'All markets':dashboardMarket==='India'?'Indian':'Forex')+' · '+(dashboardStock==='All'?'All instruments':dashboardStock),
  `<div class="top-actions"><button class="secondary" id="reportsBtn">Reports</button><button class="secondary" id="syncMt5Btn">Broker Sync</button><button class="secondary" id="backupBtn">Backup</button></div>`)+
- `<div class="card dashboard-filter"><label>View stock<select id="dashboardStock"><option>All</option>${stocks.map(s=>`<option ${s===dashboardStock?'selected':''}>${esc(s)}</option>`).join('')}</select></label>
- <label>Currency<select id="dashboardCurrency"><option value="All" ${dashboardCurrency==='All'?'selected':''}>All (keep separate)</option><option ${dashboardCurrency==='INR'?'selected':''}>INR</option><option ${dashboardCurrency==='USD'?'selected':''}>USD</option></select></label></div>
- <div class="metric-grid"><div class="metric"><span>Total trades</span><b>${ts.length}</b></div><div class="metric positive"><span>Wins</span><b>${wins.length}</b></div><div class="metric negative"><span>Losses</span><b>${losses.length}</b></div><div class="metric"><span>Breakeven</span><b>${be.length}</b></div><div class="metric positive"><span>Win rate</span><b>${fmt(wr)}%</b></div><div class="metric"><span>Avg score</span><b>${fmt(avg)}%</b></div><div class="metric positive"><span>Avg win score</span><b>${fmt(aw)}%</b></div><div class="metric negative"><span>Avg loss score</span><b>${fmt(al)}%</b></div>${moneyMetrics}</div>`+
+ marketFilters(all,dashboardMarket,dashboardStock,'dashboard')+
+ `<div class="metric-grid"><div class="metric"><span>Total trades</span><b>${ts.length}</b></div><div class="metric positive"><span>Wins</span><b>${wins.length}</b></div><div class="metric negative"><span>Losses</span><b>${losses.length}</b></div><div class="metric"><span>Breakeven</span><b>${be.length}</b></div><div class="metric positive"><span>Win rate</span><b>${fmt(wr)}%</b></div><div class="metric"><span>Avg score</span><b>${fmt(avg)}%</b></div><div class="metric positive"><span>Avg win score</span><b>${fmt(aw)}%</b></div><div class="metric negative"><span>Avg loss score</span><b>${fmt(al)}%</b></div>${moneyMetrics}</div>`+
  (dashboardCurrency==='All'?`<div class="notice">INR and USD are never added together. Select one currency for profit factor, expectancy and equity curve.</div>`:
  `<div class="section-label">Trading ratios (${dashboardCurrency})</div><div class="metric-grid"><div class="metric"><span>Profit factor</span><b>${typeof pf==='number'?fmt(pf):pf}</b></div><div class="metric"><span>Payoff ratio</span><b>${typeof payoff==='number'?fmt(payoff):payoff}</b></div><div class="metric"><span>Expectancy / trade</span><b>${signedMoney(expectancy,cur)}</b></div><div class="metric"><span>Average R:R</span><b>${fmt(avgR)}</b></div><div class="metric"><span>Plan followed</span><b>${done.length?fmt(followed/done.length*100)+'%':'—'}</b></div></div><div class="section-label">Equity curve</div><div class="card">${equityChart(done,cur)}</div>`)+
  `<div class="section-label">Score-band performance</div><div class="card table-responsive"><table class="table"><thead><tr><th>Score</th><th>Trades</th><th>Wins</th><th>Losses</th><th>Win rate</th></tr></thead><tbody>${bands(done.filter(hasChecklist)).map(x=>{let xl=x.all.filter(t=>t.verification.result==='Loss');return `<tr><td>${x.label}</td><td>${x.all.length}</td><td>${x.wins}</td><td>${xl.length}</td><td>${x.all.length?fmt(x.wins/x.all.length*100)+'%':'—'}</td></tr>`}).join('')}</tbody></table></div>`+
@@ -86,8 +90,8 @@ function renderDashboard(){
  $('#backupBtn')?.addEventListener('click',backupJSON);$('#reportsBtn')?.addEventListener('click',()=>{route='reports';render()});$('#syncMt5Btn')?.addEventListener('click',()=>{route='settings';render()});
  document.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>{editingId=b.dataset.open;draft=null;route='new';render()});
  bindScreenshotButtons();
+ $('#dashboardMarket')?.addEventListener('change',e=>{dashboardMarket=e.target.value;dashboardStock='All';renderDashboard()});
  $('#dashboardStock')?.addEventListener('change',e=>{dashboardStock=e.target.value;renderDashboard()});
- $('#dashboardCurrency')?.addEventListener('change',e=>{dashboardCurrency=e.target.value;renderDashboard()});
  $('#previousMonth')?.addEventListener('click',()=>{let d=new Date(calendarMonth+'-01T12:00:00');d.setMonth(d.getMonth()-1);calendarMonth=d.toISOString().slice(0,7);renderDashboard()});
  $('#nextMonth')?.addEventListener('click',()=>{let d=new Date(calendarMonth+'-01T12:00:00');d.setMonth(d.getMonth()+1);calendarMonth=d.toISOString().slice(0,7);renderDashboard()});
 }
@@ -298,6 +302,7 @@ async function pullJournalFromCloud(){
    let all=getTrades(),added=0,updated=0;
    for(const r of (tr.trades||[])){
      let id=String(r['Trade ID']||'').trim();if(!id)continue;
+     if(getDeletedIds().has(id))continue;
      let i=all.findIndex(t=>String(t.id)===id),old=i>=0?all[i]:null,c=checklistById[id];
      let date=normalizeSheetDate(r['Date']||c?.['Date']||'').slice(0,10);
      let tm=String(r['Time']||'').trim(),timestamp=date+(tm?`T${tm}`:'T00:00');
@@ -325,22 +330,40 @@ async function pullJournalFromCloud(){
    route='dashboard';render();
  }catch(err){console.error(err);alert(`Journal restore failed: ${err.message}`)}
 }
-async function syncGoogleSheets(s=getMt5Settings()){
- if(!s.url||!s.apiKey){alert('Enter the Apps Script URL and API key first.');return}
+function mt5Value(x,names){for(const name of names){let v=x?.[name];if(v!==undefined&&v!==null&&String(v).trim()!=='')return v}return ''}
+function mt5Identity(x){
+ let account=String(mt5Value(x,['Account Login','Account ID','Login'])||'default').trim();
+ let deal=String(mt5Value(x,['Deal ID','MT5 Ticket'])||'').trim();
+ if(deal)return `${account}:${deal}`;
+ let position=String(mt5Value(x,['Position ID','Order ID'])||'').trim(),closed=normalizeSheetDate(mt5Value(x,['Close Time','Open Time'])),symbol=String(x?.['Symbol']||'').trim(),volume=String(mt5Value(x,['Volume','Lots','Quantity'])||'').trim(),exit=String(mt5Value(x,['Close Price','Exit Price','Exit'])||'').trim();
+ return position&&closed&&symbol?`${account}:fallback:${position}:${closed}:${symbol}:${volume}:${exit}`:'';
+}
+function existingMt5Identity(t){return String(t?.mt5?.identity||((t?.mt5?.dealId||t?.mt5?.ticket)?`${t?.mt5?.account||'default'}:${t.mt5.dealId||t.mt5.ticket}`:''))}
+async function syncGoogleSheets(s=getMt5Settings(),options={}){
+ let silent=!!options.silent;
+ if(!s.url||!s.apiKey){if(!silent)alert('Enter the Apps Script URL and API key first.');return null}
  try{
    let data=await apiGet('getMT5',s);
-   let rows=Array.isArray(data.mt5)?data.mt5:[],all=getTrades(),added=0,updated=0,linked=0;
+   let rows=Array.isArray(data.mt5)?data.mt5:[],all=getTrades(),fetched=rows.length,added=0,updated=0,linked=0,skipped=0,errors=0;
+   let seen=new Set(),claimedJournalIds=new Set(all.filter(t=>existingMt5Identity(t)).map(t=>String(t.id)));
    for(const x of rows){
-     let ticket=String(x['MT5 Ticket']||x['Deal ID']||'').trim();
-     if(!ticket)continue;
-     let id='mt5-'+ticket,i=all.findIndex(t=>t.id===id||String(t.mt5?.ticket||'')===ticket);
-     let pnl=Number(x['Net P&L'] ?? x['Profit'] ?? 0);
+     try{
+     let identity=mt5Identity(x);
+     if(!identity||!String(x['Symbol']||'').trim()){skipped++;continue}
+     if(getDeletedIds().has('mt5:'+identity)){skipped++;continue}
+     if(seen.has(identity)){skipped++;continue}seen.add(identity);
+     let ticket=String(mt5Value(x,['MT5 Ticket','Deal ID'])).trim(),dealId=String(mt5Value(x,['Deal ID','MT5 Ticket'])).trim();
+     let id='mt5-'+identity.replace(/[^a-zA-Z0-9_.:-]/g,'_'),i=all.findIndex(t=>existingMt5Identity(t)===identity||t.id===id);
+     if(getDeletedIds().has(id)){skipped++;continue}
+     let pnl=Number(mt5Value(x,['Net P&L','Profit']));if(!Number.isFinite(pnl))pnl=0;
      let closed=normalizeSheetDate(x['Close Time']||x['Open Time']||localNow());
      let opened=normalizeSheetDate(x['Open Time']||closed);
+     if(!closed||!Number.isFinite(parseLocalTime(closed))){skipped++;continue}
      let direction=String(x['Direction']||'').toLowerCase()==='sell'?'Sell':'Buy';
-     let planned=i<0?findPlannedMatch(all,x,direction,closed):null;
+     let planned=i<0?findPlannedMatch(all.filter(t=>!claimedJournalIds.has(String(t.id))),x,direction,closed):null;
      if(i<0&&planned){i=all.findIndex(t=>t.id===planned.id);id=planned.id;linked++}
      let old=i>=0?all[i]:null;
+     if(planned)claimedJournalIds.add(String(planned.id));
      let v={
        ...(old?.verification||{}),
        actualEntry:x['Open Price']??x['Entry Price']??x['Entry']??old?.verification?.actualEntry??'',
@@ -362,7 +385,7 @@ async function syncGoogleSheets(s=getMt5Settings()){
        answers:old?.answers||{},beforeImage:old?.beforeImage||'',beforeImageUrl:old?.beforeImageUrl||'',
        lockedAt:old?.lockedAt||(parseLocalTime(closed)||Date.now()),verification:v,source:'MT5',
        mt5:{
-         ...(old?.mt5||{}),ticket,orderId:x['Order ID']||'',dealId:x['Deal ID']||'',symbol:x['Symbol']||'',
+         ...(old?.mt5||{}),identity,account:String(mt5Value(x,['Account Login','Account ID','Login'])||'default'),ticket,orderId:x['Order ID']||'',positionId:x['Position ID']||'',dealId,symbol:x['Symbol']||'',
          volume:x['Volume']??x['Lots']??x['Quantity']??old?.mt5?.volume??'',openTime:opened,closeTime:closed,
          entry:x['Open Price']??x['Entry Price']??x['Entry']??old?.mt5?.entry??old?.verification?.actualEntry??'',
          exit:x['Close Price']??x['Exit Price']??x['Exit']??old?.mt5?.exit??old?.verification?.actualExit??'',
@@ -373,14 +396,18 @@ async function syncGoogleSheets(s=getMt5Settings()){
        }
      };
      if(i<0){all.unshift(t);added++}else{all[i]=t;updated++}
+     }catch(rowError){console.error('MT5 row import failed',rowError,x);errors++}
    }
    putTrades(all);
    let next={...s,lastSync:new Date().toISOString()};saveMt5Settings(next);
-   alert(`MT5 sync complete: ${added} new, ${updated} updated${linked?`, ${linked} linked to planned journal trade(s)`:''}.`);
+   let counts={fetched,new:added,updated,linked,skipped,errors};
+   if(!silent)alert(`MT5 sync complete\nFetched: ${fetched}\nNew: ${added}\nUpdated: ${updated}\nLinked to journal: ${linked}\nSkipped: ${skipped}\nErrors: ${errors}`);
    route='dashboard';render();
+   return counts;
  }catch(err){
    console.error('TradeTrack Google sync error',err);
-   alert(`MT5 sync failed: ${err.message}`);
+   if(!silent)alert(`MT5 sync failed: ${err.message}`);
+   return null;
  }
 }
 function equityChart(trades,currency='INR'){let data=trades.slice().sort((a,b)=>(a.timestamp||a.date||'').localeCompare(b.timestamp||b.date||'')).map(t=>Number(t.verification?.pnl||0)),running=0,points=[0,...data.map(n=>running+=n)],min=Math.min(...points,0),max=Math.max(...points,0),range=max-min||1,w=320,h=130,pts=points.map((n,i)=>`${8+i*(w-16)/Math.max(1,points.length-1)},${h-18-(n-min)*(h-36)/range}`).join(' '),zero=h-18-(0-min)*(h-36)/range;return data.length?`<svg class="equity-chart" viewBox="0 0 ${w} ${h}" role="img" aria-label="Cumulative profit and loss chart"><line x1="8" x2="${w-8}" y1="${zero}" y2="${zero}"/><polyline points="${pts}"/><text x="8" y="12">Net P&amp;L ${esc(signedMoney(running,currency))}</text><text x="8" y="${h-3}">First</text><text x="${w-42}" y="${h-3}">Latest</text></svg>`:`<div class="empty">Add verified trades with P&amp;L to see your equity curve.</div>`}
@@ -472,10 +499,11 @@ function attachTrade(t,locked){let form=$('#tradeForm'), pendingImages={beforeIm
  $('#backHistory')?.addEventListener('click',()=>{route='history';render()}); $('#deleteTrade')?.addEventListener('click',()=>{if(confirm('Delete this trade permanently from this device?')){putTrades(getTrades().filter(x=>x.id!==t.id));editingId=null;route='history';render()}});
 }
 function compressImage(file){if(!file)return Promise.resolve('');return new Promise(resolve=>{let r=new FileReader();r.onload=()=>{let im=new Image();im.onload=()=>{let max=900,s=Math.min(1,max/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=im.width*s;c.height=im.height*s;c.getContext('2d').drawImage(im,0,0,c.width,c.height);resolve(c.toDataURL('image/jpeg',.72))};im.src=r.result};r.readAsDataURL(file)})}
-function renderHistory(){const ts=getTrades().slice().sort((a,b)=>b.lockedAt-a.lockedAt), modes=['All','Backtest','Paper','Live'];let x=historyFilter==='All'?ts:ts.filter(t=>t.mode===historyFilter);app.innerHTML=heading('Trade history','Open a record to verify or review it',`<div class="top-actions"><button class="secondary" id="csvBtn">CSV</button><button class="secondary" id="importBtn">Restore</button></div>`)+`<div class="filter-row">${modes.map(m=>`<button data-filter="${m}" class="${m===historyFilter?'active':''}">${m}</button>`).join('')}</div><div class="card">${x.length?x.map(tradeRow).join(''):`<div class="empty">No ${historyFilter==='All'?'':historyFilter+' '}trades saved yet.</div>`}</div>`;document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{historyFilter=b.dataset.filter;renderHistory()});document.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>{editingId=b.dataset.open;draft=null;route='new';render()});$('#csvBtn').onclick=exportCSV;$('#importBtn').onclick=()=>$('#importFile').click();bindScreenshotButtons()}
-function renderAnalysis(){const done=getTrades().filter(t=>verified(t)&&hasChecklist(t)), items=groups.flatMap(g=>g.items.map(([n,w])=>({group:g.name,name:n,w,key:g.name+'|'+n}))); app.innerHTML=heading('Strategy analysis','Find which rules deserve your trust')+`<div class="card"><h2>Checklist-item performance</h2>${done.length?items.map(i=>{let have=done.filter(t=>t.answers[i.key]==='Yes'),w=have.filter(t=>t.verification.result==='Win').length,l=have.filter(t=>t.verification.result==='Loss').length,wr=have.length?w/have.length*100:0;return `<div class="analysis-item"><div class="bar-row"><span>${i.name}<br><small>${i.group} · WT ${i.w}</small></span><div class="bar"><i style="width:${wr}%"></i></div><b>${fmt(wr)}%</b></div><small>${have.length} present · ${w} wins · ${l} losses</small></div>`}).join(''):`<div class="empty">Verify some trades first; then this view will reveal performance by checklist item.</div>`}</div><div class="card"><h2>Score vs win rate</h2>${done.length?bands(done).map(x=>{let wr=x.all.length?x.wins/x.all.length*100:0;return `<div class="bar-row"><span>${x.label}</span><div class="bar"><i style="width:${wr}%"></i></div><b>${x.all.length?fmt(wr)+'%':'—'}</b></div>`}).join(''):`<div class="empty">No verified trades yet.</div>`}</div><div class="notice">Only verified trades are included, so the analysis does not mistake unreviewed ideas for outcomes.</div>`}
+function renderHistory(){const all=getTrades(),ts=filterTrades(all,historyMarket,historyStock).slice().sort((a,b)=>(parseLocalTime(b.timestamp||b.date)||b.lockedAt||0)-(parseLocalTime(a.timestamp||a.date)||a.lockedAt||0)),modes=['All','Backtest','Paper','Live'];let x=historyFilter==='All'?ts:ts.filter(t=>t.mode===historyFilter),shownIds=x.map(t=>String(t.id));app.innerHTML=heading('Trade history','Select multiple records to delete or open one to review it',`<div class="top-actions"><button class="secondary" id="csvBtn">CSV</button><button class="secondary" id="importBtn">Restore</button></div>`)+marketFilters(all,historyMarket,historyStock,'history')+`<div class="filter-row">${modes.map(m=>`<button data-filter="${m}" class="${m===historyFilter?'active':''}">${m}</button>`).join('')}</div><div class="selection-bar"><label><input id="selectAllShown" type="checkbox" ${shownIds.length&&shownIds.every(id=>selectedHistoryIds.has(id))?'checked':''}> Select all shown</label><button class="danger" id="deleteSelected" ${selectedHistoryIds.size?'':'disabled'}>Delete selected (${selectedHistoryIds.size})</button></div><div class="card">${x.length?x.map(t=>`<div class="selectable-trade"><label class="trade-selector"><input type="checkbox" data-select-trade="${esc(t.id)}" ${selectedHistoryIds.has(String(t.id))?'checked':''}><span>Select</span></label>${tradeRow(t)}</div>`).join(''):`<div class="empty">No trades saved for this filter.</div>`}</div>`;document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{historyFilter=b.dataset.filter;renderHistory()});$('#historyMarket').onchange=e=>{historyMarket=e.target.value;historyStock='All';renderHistory()};$('#historyStock').onchange=e=>{historyStock=e.target.value;renderHistory()};document.querySelectorAll('[data-select-trade]').forEach(c=>c.onchange=()=>{let id=String(c.dataset.selectTrade);c.checked?selectedHistoryIds.add(id):selectedHistoryIds.delete(id);renderHistory()});$('#selectAllShown').onchange=e=>{shownIds.forEach(id=>e.target.checked?selectedHistoryIds.add(id):selectedHistoryIds.delete(id));renderHistory()};$('#deleteSelected').onclick=()=>{let count=selectedHistoryIds.size;if(!count)return;if(confirm(`Delete ${count} selected trade${count===1?'':'s'} from this device? Deleted MT5 trades will stay hidden on future syncs.`)){let deleted=getDeletedIds();selectedHistoryIds.forEach(id=>deleted.add(id));putDeletedIds(deleted);putTrades(getTrades().filter(t=>!selectedHistoryIds.has(String(t.id))));selectedHistoryIds.clear();renderHistory()}};document.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>{editingId=b.dataset.open;draft=null;route='new';render()});$('#csvBtn').onclick=exportCSV;$('#importBtn').onclick=()=>$('#importFile').click();bindScreenshotButtons()}
+function renderAnalysis(){const all=getTrades(),done=filterTrades(all,analysisMarket,analysisStock).filter(t=>verified(t)&&hasChecklist(t)),items=groups.flatMap(g=>g.items.map(([n,w])=>({group:g.name,name:n,w,key:g.name+'|'+n})));app.innerHTML=heading('Strategy analysis','Find which rules deserve your trust')+marketFilters(all,analysisMarket,analysisStock,'analysis')+`<div class="card"><h2>Checklist-item performance</h2>${done.length?items.map(i=>{let have=done.filter(t=>t.answers[i.key]==='Yes'),w=have.filter(t=>t.verification.result==='Win').length,l=have.filter(t=>t.verification.result==='Loss').length,wr=have.length?w/have.length*100:0;return `<div class="analysis-item"><div class="bar-row"><span>${i.name}<br><small>${i.group} · WT ${i.w}</small></span><div class="bar"><i style="width:${wr}%"></i></div><b>${fmt(wr)}%</b></div><small>${have.length} present · ${w} wins · ${l} losses</small></div>`}).join(''):`<div class="empty">No verified checklist trades for this filter.</div>`}</div><div class="card"><h2>Score vs win rate</h2>${done.length?bands(done).map(x=>{let wr=x.all.length?x.wins/x.all.length*100:0;return `<div class="bar-row"><span>${x.label}</span><div class="bar"><i style="width:${wr}%"></i></div><b>${x.all.length?fmt(wr)+'%':'—'}</b></div>`}).join(''):`<div class="empty">No verified trades for this filter.</div>`}</div><div class="notice">Only verified trades with checklist answers are included.</div>`;$('#analysisMarket').onchange=e=>{analysisMarket=e.target.value;analysisStock='All';renderAnalysis()};$('#analysisStock').onchange=e=>{analysisStock=e.target.value;renderAnalysis()}}
 function exportCSV(){let ts=getTrades(),headers=['ID','Mode','Market','Currency','Date','Timestamp','Script','Direction','Score / 15','Score %','Result','Actual Entry','Actual Stop Loss','Actual Target','Actual Exit','Lots / Quantity','Lot Size','Charges','P&L','R:R','Followed Setup','Moved SL','Exited Early','Review Notes',...groups.flatMap(g=>g.items.map(([n])=>g.name+' — '+n))];let rows=ts.map(t=>[t.id,t.mode,t.market||'',tradeCurrency(t),t.date,t.timestamp,t.script,t.direction,scoreOf(t),percentOf(t).toFixed(2),t.verification?.result,t.verification?.actualEntry,t.verification?.actualSL,t.verification?.actualTarget,t.verification?.actualExit,t.verification?.quantity,t.verification?.lotSize,t.verification?.charges,t.verification?.pnl,t.verification?.rr,t.verification?.followed,t.verification?.movedSL,t.verification?.exitedEarly,t.verification?.notes,...groups.flatMap(g=>g.items.map(([n])=>t.answers[g.name+'|'+n]||''))]);download('tradetrack-ai-backup-'+new Date().toISOString().slice(0,10)+'.csv',[headers,...rows].map(r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\n'),'text/csv')}
 function backupJSON(){download('tradetrack-ai-full-backup-'+new Date().toISOString().slice(0,10)+'.json',JSON.stringify({app:'TradeTrack AI',version:2,trades:getTrades()},null,2),'application/json')}
 function download(name,text,type){let a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
 $('#exportBtn').onclick=exportCSV; $('#importFile').onchange=e=>{let f=e.target.files[0];if(!f)return;let r=new FileReader();r.onload=()=>{try{let x=JSON.parse(r.result);if(!Array.isArray(x.trades))throw 0;if(confirm('Replace current local trade records with this backup?')){putTrades(x.trades);render()}}catch{alert('This is not a valid TradeTrack AI full backup.')}};r.readAsText(f);e.target.value=''};
 migrateLegacy();document.querySelectorAll('[data-route]').forEach(b=>b.onclick=()=>{route=b.dataset.route;if(route==='new'){editingId=null;draft=null}render()});if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js');render();
+(()=>{let s=getMt5Settings(),last=Date.parse(s.lastSync||0);if(s.url&&s.apiKey&&(!Number.isFinite(last)||Date.now()-last>5*60*1000))syncGoogleSheets(s,{silent:true})})();
