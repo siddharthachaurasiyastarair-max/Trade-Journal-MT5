@@ -1,4 +1,12 @@
-# TradeTrack AI v43 — Complete Sync Count and Compact Card Time
+# TradeTrack AI v44 — Risk/Reward on Trade Cards
+
+- MT5 imports now use an R:R value supplied by Google Sheets when available.
+- Otherwise R:R is calculated from entry, stop loss, and target.
+- If the target is unavailable, the app calculates realized R:R from entry, stop loss, and exit.
+- Negative realized R:R is preserved for losing trades.
+- Updated the service-worker cache so installed iPhone apps receive the correction.
+
+## Previous v43 changes
 
 - `Till date` now includes every saved trade instead of hiding records whose broker-server date is ahead of the phone's local date.
 - A completed MT5 sync resets Dashboard filters to All markets, All instruments, and Till date so the full imported set is visible immediately.

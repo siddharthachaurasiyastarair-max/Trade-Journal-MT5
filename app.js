@@ -24,7 +24,7 @@ const categoryScore=(t,g)=>g.items.reduce((a,[name,w])=>a+(t.answers?.[g.name+'|
 const categoryPercent=(t,g)=>g.total?categoryScore(t,g)/g.total*100:0;
 const hasChecklist=t=>Object.values(t?.answers||{}).some(v=>v==='Yes'||v==='No');
 const wholePercent=n=>`${Math.round(Number(n)||0)}%`;
-function riskReward(v,direction){if(v?.actualEntry===''||v?.actualEntry==null||v?.actualSL===''||v?.actualSL==null||v?.actualTarget===''||v?.actualTarget==null)return '';let entry=Number(v.actualEntry),sl=Number(v.actualSL),target=Number(v.actualTarget);if(!Number.isFinite(entry)||!Number.isFinite(sl)||!Number.isFinite(target)||entry===sl)return '';let risk=Math.abs(entry-sl),reward=direction==='Sell'?entry-target:target-entry;return reward>0?reward/risk:''}
+function riskReward(v,direction){if(v?.actualEntry===''||v?.actualEntry==null||v?.actualSL===''||v?.actualSL==null)return '';let rewardValue=v?.actualTarget!==''&&v?.actualTarget!=null?v.actualTarget:v?.actualExit;if(rewardValue===''||rewardValue==null)return '';let entry=Number(v.actualEntry),sl=Number(v.actualSL),rewardPrice=Number(rewardValue);if(!Number.isFinite(entry)||!Number.isFinite(sl)||!Number.isFinite(rewardPrice)||entry===sl)return '';let risk=Math.abs(entry-sl),reward=direction==='Sell'?entry-rewardPrice:rewardPrice-entry;return Number.isFinite(reward)?reward/risk:''}
 function calculatedPnl(v,direction){if(v?.actualEntry===''||v?.actualEntry==null||v?.actualExit===''||v?.actualExit==null||v?.quantity===''||Number(v?.quantity)<=0||v?.lotSize===''||Number(v?.lotSize||1)<=0)return '';let entry=Number(v.actualEntry),exit=Number(v.actualExit),quantity=Number(v.quantity),lotSize=Number(v.lotSize||1),charges=Number(v.charges||0);if(!Number.isFinite(entry)||!Number.isFinite(exit)||!Number.isFinite(quantity)||!Number.isFinite(lotSize)||!Number.isFinite(charges))return '';return (direction==='Sell'?entry-exit:exit-entry)*quantity*lotSize-charges}
 function monthLabel(month){return new Date(month+'-01T12:00:00').toLocaleDateString(undefined,{month:'long',year:'numeric'})}
 function qualification(p){return p>=80?'A+ Setup':p>=70?'A Setup':p>=60?'B Setup':'Avoid'}
@@ -382,7 +382,8 @@ async function syncGoogleSheets(s=getMt5Settings(),options={}){
        notes:old?.verification?.notes||'Imported from MT5 via Google Sheets',
        afterImage:old?.verification?.afterImage||'',afterImageUrl:old?.verification?.afterImageUrl||''
      };
-     v.rr=riskReward(v,direction);
+      let importedRr=Number(mt5Value(x,['R:R','RR','Risk Reward','Risk/Reward']));
+      v.rr=Number.isFinite(importedRr)&&importedRr!==0?importedRr:riskReward(v,direction);
      let t={
        ...(old||{}),id,mode:old?.mode||'Live',market:isIndianSymbol(x['Symbol'])?'India':(old?.market||'Forex'),currency:isIndianSymbol(x['Symbol'])?'INR':(old?.currency||'USD'),date:closed.slice(0,10),timestamp:closed.slice(0,16),
        script:String(x['Symbol']||old?.script||''),direction,

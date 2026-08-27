@@ -1,4 +1,6 @@
-# TradeTrack AI v43
+# TradeTrack AI v44
+
+Risk/reward is displayed on trade cards when sufficient trade data exists. The app first uses an imported R:R value, then entry/SL/target, and finally entry/SL/exit for realized R:R.
 
 After a successful MT5 sync, the dashboard opens with All markets, All instruments, and Till date selected. Till date includes all saved broker history, and the sync message reports the number of MT5 trades stored on the device.
 
