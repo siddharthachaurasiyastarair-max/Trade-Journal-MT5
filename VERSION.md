@@ -1,4 +1,12 @@
-# TradeTrack AI v42 — Whole Percentage Display
+# TradeTrack AI v43 — Complete Sync Count and Compact Card Time
+
+- `Till date` now includes every saved trade instead of hiding records whose broker-server date is ahead of the phone's local date.
+- A completed MT5 sync resets Dashboard filters to All markets, All instruments, and Till date so the full imported set is visible immediately.
+- The sync result now reports `MT5 trades on device` in addition to fetched/new/updated/skipped counts.
+- Green and red trade cards show a high-contrast compact timestamp such as `27 Aug · 14:35`.
+- Updated the service-worker cache so installed iPhone apps receive this build.
+
+## Previous v42 changes
 
 - Dashboard and Analysis percentages now display as rounded whole numbers.
 - Calculations retain full internal precision; only the presentation is rounded.

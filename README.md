@@ -1,4 +1,8 @@
-# TradeTrack AI v42
+# TradeTrack AI v43
+
+After a successful MT5 sync, the dashboard opens with All markets, All instruments, and Till date selected. Till date includes all saved broker history, and the sync message reports the number of MT5 trades stored on the device.
+
+Trade cards show a compact, high-contrast close timestamp such as `27 Aug · 14:35`.
 
 Percentage details are displayed as whole values, such as 67% instead of 66.67%. Calculations still retain full precision internally.
 
