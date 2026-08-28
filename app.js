@@ -2,6 +2,7 @@
 const KEY='tradetrack_ai_v2_records';
 const MT5_SYNC_KEY='tradetrack_mt5_sync_settings';
 const DELETED_KEY='tradetrack_deleted_trade_ids';
+const AUTO_RSI_KEYS=new Set(['Pre-Entry|RSI Trend','Pre-Entry|RSI Level','Target|RSI Level']);
 const groups=[
  {name:'Pre-Entry',total:9,items:[['RSI Trend',2],['RSI Level',2],['Liquidity (SL Hunt)',2],['Engulfing Candle',2],['Divergent',1]]},
  {name:'Entry',total:2,items:[['OB Entry (On retracement)',2],['Candle Close Entry',1]]},
@@ -18,18 +19,21 @@ const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const fmt=n=>Number(n||0).toLocaleString(undefined,{maximumFractionDigits:2});
 const resultClass=r=>r==='Win'?'':r==='Loss'?'loss':r==='Breakeven'?'breakeven':'pending';
-const scoreOf=t=>groups.reduce((n,g)=>n+g.items.reduce((a,[name,w])=>a+(t.answers?.[g.name+'|'+name]==='Yes'?w:0),0),0);
+const answerValue=(t,key)=>t?.rsiOverrides?.[key]?.value||t?.autoAnswers?.[key]||t?.answers?.[key]||'';
+const rawCategoryScore=(t,g)=>g.items.reduce((a,[name,w])=>a+(answerValue(t,g.name+'|'+name)==='Yes'?w:0),0);
+const categoryScore=(t,g)=>Math.min(g.total,rawCategoryScore(t,g));
+const scoreOf=t=>groups.reduce((n,g)=>n+categoryScore(t,g),0);
 const percentOf=t=>scoreOf(t)/15*100;
-const categoryScore=(t,g)=>g.items.reduce((a,[name,w])=>a+(t.answers?.[g.name+'|'+name]==='Yes'?w:0),0);
 const categoryPercent=(t,g)=>g.total?categoryScore(t,g)/g.total*100:0;
-const hasChecklist=t=>Object.values(t?.answers||{}).some(v=>v==='Yes'||v==='No');
+const hasChecklist=t=>[...Object.values(t?.answers||{}),...Object.values(t?.autoAnswers||{}),...Object.values(t?.rsiOverrides||{}).map(x=>x?.value)].some(v=>v==='Yes'||v==='No');
 const wholePercent=n=>`${Math.round(Number(n)||0)}%`;
+const finiteOrBlank=v=>{let n=Number(v);return v===''||v===null||v===undefined||!Number.isFinite(n)?'':n};
 function riskReward(v,direction){if(v?.actualEntry===''||v?.actualEntry==null||v?.actualSL===''||v?.actualSL==null)return '';let rewardValue=v?.actualTarget!==''&&v?.actualTarget!=null?v.actualTarget:v?.actualExit;if(rewardValue===''||rewardValue==null)return '';let entry=Number(v.actualEntry),sl=Number(v.actualSL),rewardPrice=Number(rewardValue);if(!Number.isFinite(entry)||!Number.isFinite(sl)||!Number.isFinite(rewardPrice)||entry===sl)return '';let risk=Math.abs(entry-sl),reward=direction==='Sell'?entry-rewardPrice:rewardPrice-entry;return Number.isFinite(reward)?reward/risk:''}
 function calculatedPnl(v,direction){if(v?.actualEntry===''||v?.actualEntry==null||v?.actualExit===''||v?.actualExit==null||v?.quantity===''||Number(v?.quantity)<=0||v?.lotSize===''||Number(v?.lotSize||1)<=0)return '';let entry=Number(v.actualEntry),exit=Number(v.actualExit),quantity=Number(v.quantity),lotSize=Number(v.lotSize||1),charges=Number(v.charges||0);if(!Number.isFinite(entry)||!Number.isFinite(exit)||!Number.isFinite(quantity)||!Number.isFinite(lotSize)||!Number.isFinite(charges))return '';return (direction==='Sell'?entry-exit:exit-entry)*quantity*lotSize-charges}
 function monthLabel(month){return new Date(month+'-01T12:00:00').toLocaleDateString(undefined,{month:'long',year:'numeric'})}
 function qualification(p){return p>=80?'A+ Setup':p>=70?'A Setup':p>=60?'B Setup':'Avoid'}
 function localNow(){let d=new Date(),z=d.getTimezoneOffset()*60000;return new Date(d-z).toISOString()}
-function emptyTrade(){let now=localNow();return {id:uid(),mode:'Paper',market:'India',currency:'INR',date:now.slice(0,10),timestamp:now.slice(0,16),script:'',direction:'Buy',plannedEntry:'',plannedSL:'',plannedTarget:'',answers:{},beforeImage:'',beforeImageUrl:'',lockedAt:null,verification:{actualEntry:'',actualExit:'',quantity:'1',lotSize:'1',charges:'',result:'',pnl:'',rr:'',followed:'',movedSL:'',exitedEarly:'',notes:'',afterImage:'',afterImageUrl:''}}}
+function emptyTrade(){let now=localNow();return {id:uid(),mode:'Paper',market:'India',currency:'INR',date:now.slice(0,10),timestamp:now.slice(0,16),script:'',direction:'Buy',plannedEntry:'',plannedSL:'',plannedTarget:'',answers:{},autoAnswers:{},rsiOverrides:{},rsiEvidence:{entry:null,exit:null},beforeImage:'',beforeImageUrl:'',lockedAt:null,verification:{actualEntry:'',actualExit:'',quantity:'1',lotSize:'1',charges:'',result:'',pnl:'',rr:'',followed:'',movedSL:'',exitedEarly:'',notes:'',afterImage:'',afterImageUrl:''}}}
 function isIndianSymbol(value){let s=String(value||'').trim().toUpperCase().replace(/[\s_-]/g,'');return /^(NIFTY|NIFTY50|BANKNIFTY|NIFTYBANK|FINNIFTY|MIDCPNIFTY|NIFTYMIDCAP|SENSEX|BANKEX)/.test(s)||/\.(NS|BO)$/.test(String(value||'').trim().toUpperCase())||/^(NSE|BSE):/.test(String(value||'').trim().toUpperCase())}
 function tradeCurrency(t){if(isIndianSymbol(t?.script||t?.mt5?.symbol))return 'INR';let market=String(t?.market||'').toLowerCase();if(market==='india')return 'INR';if(market==='forex')return 'USD';return String(t?.currency||((t?.source==='MT5'||t?.mt5?.ticket)?'USD':'INR')).toUpperCase()==='USD'?'USD':'INR'}
 function tradeMarket(t){if(isIndianSymbol(t?.script||t?.mt5?.symbol))return 'India';let m=String(t?.market||'').toLowerCase();if(m==='india')return 'India';if(m==='forex')return 'Forex';return tradeCurrency(t)==='USD'?'Forex':'India'}
@@ -102,8 +106,43 @@ function renderDashboard(){
 }
 function getMt5Settings(){try{return JSON.parse(localStorage.getItem(MT5_SYNC_KEY)||'{}')}catch{return{}}}
 function saveMt5Settings(s){localStorage.setItem(MT5_SYNC_KEY,JSON.stringify(s))}
+function normalizedRsiSettings(s=getMt5Settings()){
+ let slope=finiteOrBlank(s.rsiSlopeThreshold);
+ return {
+   period:Math.max(2,Number(s.rsiPeriod)||14),lookback:Math.max(3,Math.min(10,Number(s.rsiLookback)||5)),
+   slopeThreshold:slope===''?0.5:Math.max(0,slope),buyMin:finiteOrBlank(s.buyRsiMin),buyMax:finiteOrBlank(s.buyRsiMax),
+   sellMin:finiteOrBlank(s.sellRsiMin),sellMax:finiteOrBlank(s.sellRsiMax),longExit:finiteOrBlank(s.longExitRsi),shortExit:finiteOrBlank(s.shortExitRsi)
+ };
+}
+function calculateRsiTrend(values,threshold=.5){
+ let a=(values||[]).map(Number).filter(Number.isFinite),n=a.length;if(n<3)return {slope:'',upMoves:0,downMoves:0,trend:'Unavailable'};
+ let sx=0,sy=0,sxy=0,sxx=0;for(let i=0;i<n;i++){sx+=i;sy+=a[i];sxy+=i*a[i];sxx+=i*i}
+ let den=n*sxx-sx*sx,slope=den?(n*sxy-sx*sy)/den:0,upMoves=0,downMoves=0;for(let i=1;i<n;i++){if(a[i]>a[i-1])upMoves++;else if(a[i]<a[i-1])downMoves++}
+ let required=Math.ceil((n-1)*.75),trend=slope>=threshold&&upMoves>=required?'Rising':slope<=-threshold&&downMoves>=required?'Falling':'Flat/Mixed';
+ return {slope,upMoves,downMoves,trend};
+}
+function rsiValuesFromCell(v){return String(v||'').split(/[|,;]+/).map(x=>Number(x.trim())).filter(Number.isFinite)}
+function rsiSnapshotFromMt5Row(x,label){
+ let prefix=label==='entry'?'Entry':'Exit',used=finiteOrBlank(mt5Value(x,[prefix+' RSI'])),closed=finiteOrBlank(mt5Value(x,[prefix+' RSI Closed'])),live=finiteOrBlank(mt5Value(x,[prefix+' RSI Live'])),values=rsiValuesFromCell(mt5Value(x,[prefix+' RSI Values']));
+ if(used===''&&closed===''&&live===''&&!values.length)return null;
+ let threshold=finiteOrBlank(mt5Value(x,['RSI Slope Threshold']));if(threshold==='')threshold=.5;
+ let calculated=calculateRsiTrend(values,Number(threshold)),slope=finiteOrBlank(mt5Value(x,[prefix+' RSI Slope']));
+ return {label,used:used!==''?used:(closed!==''?closed:live),closed,live,values,slope:slope!==''?slope:calculated.slope,
+   trend:String(mt5Value(x,[prefix+' RSI Trend'])||calculated.trend||'Unavailable'),upMoves:Number(mt5Value(x,[prefix+' RSI Up Moves']))||calculated.upMoves,
+   downMoves:Number(mt5Value(x,[prefix+' RSI Down Moves']))||calculated.downMoves,candleTime:normalizeSheetDate(mt5Value(x,[prefix+' RSI Candle Time'])),
+   capturedAt:normalizeSheetDate(mt5Value(x,[prefix+' RSI Captured At',prefix==='Entry'?'Open Time':'Close Time'])),captureMode:String(mt5Value(x,[prefix+' RSI Capture'])||'Historical backfill'),
+   timeframe:String(mt5Value(x,['RSI Timeframe'])||'M1'),period:Number(mt5Value(x,['RSI Period']))||14,lookback:Number(mt5Value(x,['RSI Lookback']))||values.length||5,threshold:Number(threshold)};
+}
+function rangeDecision(value,min,max){let n=Number(value);if(!Number.isFinite(n)||(min===''&&max===''))return null;return (min===''||n>=Number(min))&&(max===''||n<=Number(max))}
+function setAutoRsiAnswer(t,key,value){let manual=t.answers?.[key];if((manual==='Yes'||manual==='No')&&manual!==value&&!t.rsiOverrides?.[key])t.rsiOverrides[key]={value:manual,reason:'Entered manually before automatic RSI evidence was available',at:new Date().toISOString()};if(manual===value)delete t.answers[key];t.autoAnswers[key]=value}
+function refreshAutoRsiAnswers(t,s=getMt5Settings()){
+ t.autoAnswers=t.autoAnswers||{};t.rsiOverrides=t.rsiOverrides||{};let cfg=normalizedRsiSettings(s),entry=t.rsiEvidence?.entry,exit=t.rsiEvidence?.exit;
+ if(entry){setAutoRsiAnswer(t,'Pre-Entry|RSI Trend',entry.trend===(t.direction==='Sell'?'Falling':'Rising')?'Yes':'No');let pass=rangeDecision(entry.used,t.direction==='Sell'?cfg.sellMin:cfg.buyMin,t.direction==='Sell'?cfg.sellMax:cfg.buyMax);if(pass===null)delete t.autoAnswers['Pre-Entry|RSI Level'];else setAutoRsiAnswer(t,'Pre-Entry|RSI Level',pass?'Yes':'No')}
+ if(exit){let threshold=t.direction==='Sell'?cfg.shortExit:cfg.longExit,pass=threshold===''?null:(t.direction==='Sell'?Number(exit.used)<=Number(threshold):Number(exit.used)>=Number(threshold));if(pass===null)delete t.autoAnswers['Target|RSI Level'];else setAutoRsiAnswer(t,'Target|RSI Level',pass?'Yes':'No')}
+ return t;
+}
 function renderSyncSettings(){
- let s=getMt5Settings(),last=s.lastSync?new Date(s.lastSync).toLocaleString():'Never',today=localNow().slice(0,10),from=new Date(Date.now()-30*86400000).toISOString().slice(0,10);
+ let s=getMt5Settings(),rsi=normalizedRsiSettings(s),last=s.lastSync?new Date(s.lastSync).toLocaleString():'Never',today=localNow().slice(0,10),from=new Date(Date.now()-30*86400000).toISOString().slice(0,10);
  app.innerHTML=heading('Broker & cloud sync','Import broker trades and back up your TradeTrack journal')+
  `<div class="card"><h2>FundedNext Demo · MCP</h2>
  <p id="fundedNextStatus" class="hint">Checking the private FundedNext connection…</p>
@@ -117,8 +156,19 @@ function renderSyncSettings(){
  <p class="hint">FundedNext is accessed securely through your private Google Apps Script settings. No MCP link or token is stored in this public app.</p>
  </div>
  <div class="card"><h2>Google Sheets / MT5 bridge</h2><form id="mt5Settings">
- <label>Apps Script URL<input name="url" value="${esc(s.url||'https://script.google.com/macros/s/AKfycbyMkVzqfADdBgzlzmjDdkPSR8-CFOjT_KQ8YbBQLn2R3UPyDrud0F6SBVSFTOdyKYE/exec')}" placeholder="https://script.google.com/macros/s/.../exec"></label>
+ <label>Apps Script URL<input name="url" value="${esc(s.url||'')}" placeholder="https://script.google.com/macros/s/.../exec"></label>
  <label>API Key<input name="apiKey" type="password" value="${esc(s.apiKey||'')}" placeholder="TradeTrack API key" autocomplete="off"></label>
+ <div class="rsi-settings"><h3>Automatic RSI checklist · M1</h3><div class="form-grid">
+ <label>RSI period<input name="rsiPeriod" type="number" min="2" max="100" value="${rsi.period}"></label>
+ <label>Trend candles<input name="rsiLookback" type="number" min="3" max="10" value="${rsi.lookback}"></label>
+ <label>Minimum slope<input name="rsiSlopeThreshold" type="number" min="0" step="0.1" value="${rsi.slopeThreshold}"></label>
+ <label>Buy RSI minimum<input name="buyRsiMin" type="number" min="0" max="100" step="0.1" value="${rsi.buyMin}"></label>
+ <label>Buy RSI maximum<input name="buyRsiMax" type="number" min="0" max="100" step="0.1" value="${rsi.buyMax}"></label>
+ <label>Sell RSI minimum<input name="sellRsiMin" type="number" min="0" max="100" step="0.1" value="${rsi.sellMin}"></label>
+ <label>Sell RSI maximum<input name="sellRsiMax" type="number" min="0" max="100" step="0.1" value="${rsi.sellMax}"></label>
+ <label>Long exit RSI ≥<input name="longExitRsi" type="number" min="0" max="100" step="0.1" value="${rsi.longExit}"></label>
+ <label>Short exit RSI ≤<input name="shortExitRsi" type="number" min="0" max="100" step="0.1" value="${rsi.shortExit}"></label>
+ </div><p class="hint">Trend uses the latest completed M1 candles. Level answers remain manual until you configure the applicable entry or exit thresholds. Use the same period, lookback and slope threshold in the MT5 EA.</p></div>
  <button class="primary">Save settings &amp; sync MT5</button>
  </form>
  <p class="hint">Last successful sync: ${esc(last)}. The API key stays only in local storage on this device and is not written to your public GitHub repository.</p>
@@ -139,8 +189,10 @@ function renderSyncSettings(){
  };
  $('#mt5Settings').onsubmit=async e=>{
    e.preventDefault();
-   let f=new FormData(e.target),next={...s,url:String(f.get('url')||'').trim(),apiKey:String(f.get('apiKey')||'').trim()};
+   let f=new FormData(e.target),next={...s,url:String(f.get('url')||'').trim(),apiKey:String(f.get('apiKey')||'').trim(),rsiPeriod:String(f.get('rsiPeriod')||'14'),rsiLookback:String(f.get('rsiLookback')||'5'),rsiSlopeThreshold:String(f.get('rsiSlopeThreshold')||'0.5'),buyRsiMin:String(f.get('buyRsiMin')||''),buyRsiMax:String(f.get('buyRsiMax')||''),sellRsiMin:String(f.get('sellRsiMin')||''),sellRsiMax:String(f.get('sellRsiMax')||''),longExitRsi:String(f.get('longExitRsi')||''),shortExitRsi:String(f.get('shortExitRsi')||'')};
+   let cfg=normalizedRsiSettings(next);if((cfg.buyMin!==''&&cfg.buyMax!==''&&cfg.buyMin>cfg.buyMax)||(cfg.sellMin!==''&&cfg.sellMax!==''&&cfg.sellMin>cfg.sellMax)){alert('An RSI minimum cannot be greater than its maximum.');return}
    saveMt5Settings(next);
+   putTrades(getTrades().map(t=>refreshAutoRsiAnswers(t,next)));
    await syncGoogleSheets(next);
  };
  $('#pushJournal').onclick=async()=>{await pushAllJournalToCloud()};
@@ -234,19 +286,21 @@ function tradeCloudPayload(t){
  };
 }
 function checklistCloudPayload(t){
- let a=t.answers||{};
+ let a=key=>answerValue(t,key);
  return {
    action:'saveChecklist',tradeId:t.id,date:t.date||'',script:t.script||'',mode:t.mode||'',
-   rsiTrend:a['Pre-Entry|RSI Trend']||'',rsiLevel:a['Pre-Entry|RSI Level']||'',
-   liquidityPre:a['Pre-Entry|Liquidity (SL Hunt)']||'',engulfingPre:a['Pre-Entry|Engulfing Candle']||'',
-   divergent:a['Pre-Entry|Divergent']||'',obEntry:a['Entry|OB Entry (On retracement)']||'',
-   candleCloseEntry:a['Entry|Candle Close Entry']||'',engulfingSL:a['SL|Engulfing Candle']||'',
-   nearestSwing:a['SL|Nearest Swing']||'',othersSL:a['SL|Others']||'',
-   rsiTarget:a['Target|RSI Level']||'',oppositeEngulfing:a['Target|Opposite Engulfing Candle']||'',
-   liquidityTarget:a['Target|Liquidity (SL Hunt)']||'',othersTarget:a['Target|Others']||'',
+   rsiTrend:a('Pre-Entry|RSI Trend'),rsiLevel:a('Pre-Entry|RSI Level'),
+   liquidityPre:a('Pre-Entry|Liquidity (SL Hunt)'),engulfingPre:a('Pre-Entry|Engulfing Candle'),
+   divergent:a('Pre-Entry|Divergent'),obEntry:a('Entry|OB Entry (On retracement)'),
+   candleCloseEntry:a('Entry|Candle Close Entry'),engulfingSL:a('SL|Engulfing Candle'),
+   nearestSwing:a('SL|Nearest Swing'),othersSL:a('SL|Others'),
+   rsiTarget:a('Target|RSI Level'),oppositeEngulfing:a('Target|Opposite Engulfing Candle'),
+   liquidityTarget:a('Target|Liquidity (SL Hunt)'),othersTarget:a('Target|Others'),
    preEntryScore:categoryScore(t,groups[0]),entryScore:categoryScore(t,groups[1]),
    slScore:categoryScore(t,groups[2]),targetScore:categoryScore(t,groups[3]),
-   overallScore:scoreOf(t),lockedAt:t.lockedAt?new Date(t.lockedAt).toISOString():''
+   overallScore:scoreOf(t),lockedAt:t.lockedAt?new Date(t.lockedAt).toISOString():'',
+   autoRsiAnswers:JSON.stringify(t.autoAnswers||{}),rsiOverrides:JSON.stringify(t.rsiOverrides||{}),
+   entryRsiEvidence:JSON.stringify(t.rsiEvidence?.entry||null),exitRsiEvidence:JSON.stringify(t.rsiEvidence?.exit||null)
  };
 }
 async function uploadScreenshotToDrive(t,kind,s=getMt5Settings()){
@@ -299,6 +353,7 @@ function checklistFromCloudRow(c){
  map.forEach(([k,h])=>{let v=String(c?.[h]??'');if(v==='Yes'||v==='No')a[k]=v});
  return a;
 }
+function cloudJson(v,fallback){try{let parsed=JSON.parse(String(v||''));return parsed&&typeof parsed==='object'?parsed:fallback}catch{return fallback}}
 async function pullJournalFromCloud(){
  let s=getMt5Settings();
  try{
@@ -312,11 +367,13 @@ async function pullJournalFromCloud(){
      let date=normalizeSheetDate(r['Date']||c?.['Date']||'').slice(0,10);
      let tm=String(r['Time']||'').trim(),timestamp=date+(tm?`T${tm}`:'T00:00');
      let answers=c?checklistFromCloudRow(c):(old?.answers||{});
+     let autoAnswers=c?cloudJson(c['Auto RSI Answers JSON'],old?.autoAnswers||{}):(old?.autoAnswers||{}),rsiOverrides=c?cloudJson(c['RSI Overrides JSON'],old?.rsiOverrides||{}):(old?.rsiOverrides||{});
+     let rsiEvidence={entry:c?cloudJson(c['Entry RSI Evidence JSON'],old?.rsiEvidence?.entry||null):(old?.rsiEvidence?.entry||null),exit:c?cloudJson(c['Exit RSI Evidence JSON'],old?.rsiEvidence?.exit||null):(old?.rsiEvidence?.exit||null)};
      let t={
        id,date,timestamp,mode:String(r['Mode']||c?.['Mode']||old?.mode||'Paper'),market:String(r['Market']||old?.market||'India'),currency:String(r['Currency']||old?.currency||'INR'),
        script:String(r['Script']||c?.['Script']||old?.script||''),direction:String(r['Direction']||old?.direction||'Buy'),
        plannedEntry:r['Planned Entry']??old?.plannedEntry??'',plannedSL:r['Planned SL']??old?.plannedSL??'',
-       plannedTarget:r['Planned Target']??old?.plannedTarget??'',answers,beforeImage:old?.beforeImage||'',beforeImageUrl:String(r['Before Screenshot URL']||old?.beforeImageUrl||''),
+       plannedTarget:r['Planned Target']??old?.plannedTarget??'',answers,autoAnswers,rsiOverrides,rsiEvidence,beforeImage:old?.beforeImage||'',beforeImageUrl:String(r['Before Screenshot URL']||old?.beforeImageUrl||''),
        lockedAt:old?.lockedAt||Date.now(),source:old?.source||'Cloud',
        mt5:old?.mt5||((r['MT5 Ticket']||'')?{ticket:String(r['MT5 Ticket'])}:undefined),
        verification:{
@@ -369,6 +426,7 @@ async function syncGoogleSheets(s=getMt5Settings(),options={}){
      if(i<0&&planned){i=all.findIndex(t=>t.id===planned.id);id=planned.id;linked++}
      let old=i>=0?all[i]:null;
      if(planned)claimedJournalIds.add(String(planned.id));
+     let importedRsi={entry:rsiSnapshotFromMt5Row(x,'entry'),exit:rsiSnapshotFromMt5Row(x,'exit')};
      let v={
        ...(old?.verification||{}),
        actualEntry:x['Open Price']??x['Entry Price']??x['Entry']??old?.verification?.actualEntry??'',
@@ -388,7 +446,8 @@ async function syncGoogleSheets(s=getMt5Settings(),options={}){
        ...(old||{}),id,mode:old?.mode||'Live',market:isIndianSymbol(x['Symbol'])?'India':(old?.market||'Forex'),currency:isIndianSymbol(x['Symbol'])?'INR':(old?.currency||'USD'),date:closed.slice(0,10),timestamp:closed.slice(0,16),
        script:String(x['Symbol']||old?.script||''),direction,
        plannedEntry:old?.plannedEntry||'',plannedSL:old?.plannedSL||'',plannedTarget:old?.plannedTarget||'',
-       answers:old?.answers||{},beforeImage:old?.beforeImage||'',beforeImageUrl:old?.beforeImageUrl||'',
+       answers:old?.answers||{},autoAnswers:old?.autoAnswers||{},rsiOverrides:old?.rsiOverrides||{},
+       rsiEvidence:{entry:importedRsi.entry||old?.rsiEvidence?.entry||null,exit:importedRsi.exit||old?.rsiEvidence?.exit||null},beforeImage:old?.beforeImage||'',beforeImageUrl:old?.beforeImageUrl||'',
        lockedAt:old?.lockedAt||(parseLocalTime(closed)||Date.now()),verification:v,source:'MT5',
        mt5:{
          ...(old?.mt5||{}),identity,account:String(mt5Value(x,['Account Login','Account ID','Login'])||'default'),ticket,orderId:x['Order ID']||'',positionId:x['Position ID']||'',dealId,symbol:x['Symbol']||'',
@@ -401,6 +460,7 @@ async function syncGoogleSheets(s=getMt5Settings(),options={}){
          magicNumber:x['Magic Number']||'',lastSyncedAt:x['Last Synced At']||''
        }
      };
+     refreshAutoRsiAnswers(t,s);
      if(i<0){all.unshift(t);added++}else{all[i]=t;updated++}
      }catch(rowError){console.error('MT5 row import failed',rowError,x);errors++}
    }
@@ -483,26 +543,34 @@ function tradeRow(t){
  hasExecution=isMt5||[volume,entry,exit,sl,target].some(x=>x!==''&&x!=null),
  mt5Info=hasExecution?`<div class="mt5-detail-grid">${m.ticket?`<div><span>Ticket</span><b>${esc(m.ticket)}</b></div>`:''}<div><span>Volume</span><b>${volume!==''?esc(volume):'—'}</b></div><div><span>Entry</span><b>${entry!==''?fmt(entry):'—'}</b></div><div><span>Exit</span><b>${exit!==''?fmt(exit):'—'}</b></div><div><span>SL</span><b>${sl!==''?fmt(sl):'—'}</b></div><div><span>TP</span><b>${target!==''?fmt(target):'—'}</b></div></div>`:'',
  shots=(t.beforeImage||t.beforeImageUrl||v.afterImage||v.afterImageUrl)?`<div class="screenshot-actions">${(t.beforeImage||t.beforeImageUrl)?`<button type="button" data-shot="${esc(t.beforeImage||t.beforeImageUrl)}" data-shot-title="Setup screenshot">Setup image</button>`:''}${(v.afterImage||v.afterImageUrl)?`<button type="button" data-shot="${esc(v.afterImage||v.afterImageUrl)}" data-shot-title="After-trade screenshot">After image</button>`:''}</div>`:'',
+ rsiInfo=(t.rsiEvidence?.entry||t.rsiEvidence?.exit)?`<div class="rsi-card-summary"><div><span>Entry RSI</span><b>${t.rsiEvidence?.entry?fmt(t.rsiEvidence.entry.used)+' · '+esc(t.rsiEvidence.entry.trend):'—'}</b></div><div><span>Exit RSI</span><b>${t.rsiEvidence?.exit?fmt(t.rsiEvidence.exit.used)+' · '+esc(t.rsiEvidence.exit.trend):'—'}</b></div></div>`:'',
  linkState=isMt5?(checklistPresent?'<span class="linked-badge">Linked to checklist</span>':'<span class="unlinked-badge">MT5 only</span>'):'';
- return `<div class="trade-card history-trade-card ${loss?'history-loss-card':''}"><div class="history-top"><div><strong>${esc(t.script||'Untitled')}</strong><small><span class="card-date-time">${esc(shortCardDateTime(t))}</span> · ${esc(t.direction)} · ${esc(t.mode)} · ${cur} ${linkState}</small></div><button class="history-open" data-open="${t.id}">Open</button></div><div class="history-middle"><div class="history-score"><span>Strategy Score</span><b>${checklistPresent?wholePercent(p):"—"}</b></div><div class="history-heads">${groups.map(g=>`<div><span>${g.name}</span><b>${checklistPresent?wholePercent(categoryPercent(t,g)):'—'}</b></div>`).join('')}</div></div>${mt5Info}${shots}<div class="history-columns history-summary"><div><span>P&amp;L</span><b>${pnl}</b></div><div><span>R:R</span><b>${rr}</b></div><div><span>Result</span><b>${v.result||'Pending'}</b></div><div><span>Plan followed</span><b>${v.followed||'—'}</b></div></div></div>`
+ return `<div class="trade-card history-trade-card ${loss?'history-loss-card':''}"><div class="history-top"><div><strong>${esc(t.script||'Untitled')}</strong><small><span class="card-date-time">${esc(shortCardDateTime(t))}</span> · ${esc(t.direction)} · ${esc(t.mode)} · ${cur} ${linkState}</small></div><button class="history-open" data-open="${t.id}">Open</button></div><div class="history-middle"><div class="history-score"><span>Strategy Score</span><b>${checklistPresent?wholePercent(p):"—"}</b></div><div class="history-heads">${groups.map(g=>`<div><span>${g.name}</span><b>${checklistPresent?wholePercent(categoryPercent(t,g)):'—'}</b></div>`).join('')}</div></div>${mt5Info}${rsiInfo}${shots}<div class="history-columns history-summary"><div><span>P&amp;L</span><b>${pnl}</b></div><div><span>R:R</span><b>${rr}</b></div><div><span>Result</span><b>${v.result||'Pending'}</b></div><div><span>Plan followed</span><b>${v.followed||'—'}</b></div></div></div>`
 }
-function renderTrade(){let ts=getTrades(), t=editingId?(draft||ts.find(x=>x.id===editingId)):null; if(!t)t=draft||emptyTrade(); if(!editingId)draft=t; const locked=false;
- app.innerHTML=heading(editingId?'Edit trade':'New trade','Checklist answers, scores, and actual details can be changed any time.')+
- `<form id="tradeForm">${actualTradeForm(t,locked)}${checklist(t)}<button class="primary" type="submit">${editingId?'Update trade':'Save trade'}</button><p class="hint">Nothing is locked. Open any saved trade from History whenever you want to edit it.</p></form>`+(editingId?`<div class="row-actions"><button class="secondary" id="backHistory">Back to history</button><button class="danger" id="deleteTrade">Delete trade</button></div>`:'');
+function renderTrade(){let ts=getTrades(), t=editingId?(draft||ts.find(x=>x.id===editingId)):null; if(!t)t=draft||emptyTrade();if(!t.rsiEvidence)t.rsiEvidence={entry:null,exit:null};refreshAutoRsiAnswers(t); if(!editingId)draft=t; const locked=false;
+ app.innerHTML=heading(editingId?'Edit trade':'New trade','MT5 evidence is automatic; the remaining checklist stays manual.')+
+ `<form id="tradeForm">${actualTradeForm(t,locked)}${rsiEvidencePanel(t)}${checklist(t)}<button class="primary" type="submit">${editingId?'Update trade':'Save trade'}</button><p class="hint">Automatic RSI evidence is retained from MT5. Manual overrides are recorded separately with a reason.</p></form>`+(editingId?`<div class="row-actions"><button class="secondary" id="backHistory">Back to history</button><button class="danger" id="deleteTrade">Delete trade</button></div>`:'');
  attachTrade(t,locked);
 }
-function checklist(t){let summary=groups.map(g=>`${g.name}: ${wholePercent(categoryPercent(t,g))}`).join('<br>');return `<div class="score-banner"><div><small>Strategy score · ${qualification(percentOf(t))}</small><strong id="scoreValue">${wholePercent(percentOf(t))}</strong></div><div class="score-details" id="scoreDetails">Strategy score: ${wholePercent(percentOf(t))}<br>${summary}</div></div><div class="notice">Category displayed totals: Pre-Entry 9 · Entry 2 · SL 2 · Target 2 · Overall denominator 15.</div>${groups.map(g=>`<div class="check-group"><header>${g.name}<span id="category-${g.name}">${wholePercent(categoryPercent(t,g))}</span></header>${g.items.map(([name,w])=>{let k=g.name+'|'+name,a=t.answers[k];return `<div class="check-row"><span class="item-name">${name}</span><span class="weight">WT ${w}</span><span class="answer"><button type="button" class="yes ${a==='Yes'?'active':''}" data-answer="Yes" data-key="${esc(k)}">YES</button><button type="button" class="no ${a==='No'?'active':''}" data-answer="No" data-key="${esc(k)}">NO</button></span></div>`}).join('')}</div>`).join('')}`}
-function preTradeSummary(t){return `<div class="score-banner"><div><small>Locked strategy score · ${qualification(percentOf(t))}</small><strong>${fmt(percentOf(t))}%</strong></div><div class="score-details">Overall: ${scoreOf(t)} / 15<br>Pre-entry ${categoryScore(t,groups[0])}/9 · Entry ${categoryScore(t,groups[1])}/2<br>SL ${categoryScore(t,groups[2])}/2 · Target ${categoryScore(t,groups[3])}/2</div></div><div class="card"><h3>Locked checklist</h3>${groups.map(g=>`<p class="hint"><b>${g.name}</b> — ${g.items.filter(([n])=>t.answers[g.name+'|'+n]==='Yes').map(([n])=>n).join(', ')||'No YES responses'}</p>`).join('')}<div class="photo-grid">${t.beforeImage?`<div class="photo-box">Before-trade screenshot<img src="${t.beforeImage}" alt="Before-trade chart"></div>`:''}</div></div>`}
+function rsiSnapshotHtml(s,title){
+ if(!s)return `<article class="rsi-snapshot empty-rsi"><div class="rsi-snapshot-title">${title}</div><p>Waiting for MT5 evidence</p></article>`;
+ let values=s.values?.length?s.values.map(x=>Number(x).toFixed(1)).join(' → '):'—',live=s.live!==''&&s.live!=null?fmt(s.live):'—',closed=s.closed!==''&&s.closed!=null?fmt(s.closed):'—';
+ return `<article class="rsi-snapshot"><div class="rsi-snapshot-title"><span>${title}</span><span class="rsi-source">${esc(s.captureMode||'MT5')}</span></div><div class="rsi-main"><strong>${fmt(s.used)}</strong><span>${esc(s.trend||'Unavailable')}</span></div><dl><div><dt>Live RSI</dt><dd>${live}</dd></div><div><dt>Closed RSI</dt><dd>${closed}</dd></div><div><dt>Slope</dt><dd>${s.slope===''?'—':Number(s.slope).toFixed(2)}/min</dd></div><div><dt>Moves</dt><dd>${s.upMoves||0} up · ${s.downMoves||0} down</dd></div><div class="wide"><dt>Completed M1 values</dt><dd>${values}</dd></div><div class="wide"><dt>Candle / capture time</dt><dd>${esc(s.candleTime||s.capturedAt||'—')}</dd></div></dl></article>`;
+}
+function automaticDecision(t,key,label){let auto=t.autoAnswers?.[key],override=t.rsiOverrides?.[key];if(!auto)return `<span class="auto-decision waiting">${label}: manual until configured</span>`;return `<span class="auto-decision ${auto.toLowerCase()}">${label}: Auto ${auto}${override?` · overridden to ${esc(override.value)}`:''}</span>`}
+function rsiEvidencePanel(t){let has=t.rsiEvidence?.entry||t.rsiEvidence?.exit;return `<div class="card rsi-evidence"><h2>Automatic RSI evidence</h2><p class="hint">Trend uses the configured number of completed M1 candles. Live RSI is stored separately when the EA was running at the trade event.</p><div class="rsi-snapshot-grid">${rsiSnapshotHtml(t.rsiEvidence?.entry,'Entry RSI')}${rsiSnapshotHtml(t.rsiEvidence?.exit,'Exit RSI')}</div><div class="auto-decision-row">${automaticDecision(t,'Pre-Entry|RSI Trend','Entry trend')}${automaticDecision(t,'Pre-Entry|RSI Level','Entry level')}${automaticDecision(t,'Target|RSI Level','Exit level')}</div>${has?'':`<div class="notice">Install the included MT5 EA v2.30, deploy the included Code.gs, close or resync a trade, then run Broker Sync.</div>`}</div>`}
+function checklist(t){let summary=groups.map(g=>`${g.name}: ${wholePercent(categoryPercent(t,g))}`).join('<br>');return `<div class="score-banner"><div><small>Strategy score · ${qualification(percentOf(t))}</small><strong id="scoreValue">${wholePercent(percentOf(t))}</strong></div><div class="score-details" id="scoreDetails">Strategy score: ${wholePercent(percentOf(t))}<br>${summary}</div></div><div class="notice">Category scores are capped at Pre-Entry 9 · Entry 2 · SL 2 · Target 2, so the overall score cannot exceed 100%.</div>${groups.map(g=>`<div class="check-group"><header>${g.name}<span id="category-${g.name}">${wholePercent(categoryPercent(t,g))}</span></header>${g.items.map(([name,w])=>{let k=g.name+'|'+name,a=answerValue(t,k),auto=t.autoAnswers?.[k],override=t.rsiOverrides?.[k];return `<div class="check-row ${auto?'auto-check-row':''}"><span class="item-name">${name}${auto?`<small class="auto-note">MT5 auto: ${auto}${override?` · Manual: ${esc(override.value)} (${esc(override.reason||'reason not supplied')})`:''}</small>`:''}</span><span class="weight">WT ${w}</span><span class="answer"><button type="button" class="yes ${a==='Yes'?'active':''}" data-answer="Yes" data-key="${esc(k)}">YES</button><button type="button" class="no ${a==='No'?'active':''}" data-answer="No" data-key="${esc(k)}">NO</button></span></div>`}).join('')}</div>`).join('')}`}
+function preTradeSummary(t){return `<div class="score-banner"><div><small>Locked strategy score · ${qualification(percentOf(t))}</small><strong>${fmt(percentOf(t))}%</strong></div><div class="score-details">Overall: ${scoreOf(t)} / 15<br>Pre-entry ${categoryScore(t,groups[0])}/9 · Entry ${categoryScore(t,groups[1])}/2<br>SL ${categoryScore(t,groups[2])}/2 · Target ${categoryScore(t,groups[3])}/2</div></div><div class="card"><h3>Locked checklist</h3>${groups.map(g=>`<p class="hint"><b>${g.name}</b> — ${g.items.filter(([n])=>answerValue(t,g.name+'|'+n)==='Yes').map(([n])=>n).join(', ')||'No YES responses'}</p>`).join('')}<div class="photo-grid">${t.beforeImage?`<div class="photo-box">Before-trade screenshot<img src="${t.beforeImage}" alt="Before-trade chart"></div>`:''}</div></div>`}
 function imageInput(name,value,label){return `<div class="photo-box"><b>${label}</b>${value?`<img src="${value}" alt="${label}">`:''}<input type="file" accept="image/*" data-image="${name}"></div>`}
 function actualTradeForm(t,locked){let v=t.verification||{},rr=riskReward(v,t.direction),pnl=calculatedPnl(v,t.direction);return `<div class="card"><h2>Actual trade & execution</h2><div class="form-grid"><label>Mode<div class="segmented" id="modeButtons">${['Backtest','Paper','Live'].map(x=>`<button type="button" data-mode="${x}" class="${t.mode===x?'selected':''}" ${locked?'disabled':''}>${x}</button>`).join('')}</div></label><label>Market<select name="market"><option ${t.market==='India'?'selected':''}>India</option><option ${t.market==='Forex'?'selected':''}>Forex</option></select></label><label>Currency<select name="currency"><option value="INR" ${tradeCurrency(t)==='INR'?'selected':''}>INR ₹</option><option value="USD" ${tradeCurrency(t)==='USD'?'selected':''}>USD $</option></select></label><label>Date<input name="date" type="date" value="${esc(t.date)}" ${locked?'disabled':''}></label><label>Timestamp<input name="timestamp" type="datetime-local" value="${esc(t.timestamp)}" ${locked?'disabled':''}></label><label class="wide">Script / Stock<input name="script" placeholder="e.g. NIFTY" value="${esc(t.script)}" ${locked?'disabled':''}></label><label>Direction<select name="direction" ${locked?'disabled':''}><option ${t.direction==='Buy'?'selected':''}>Buy</option><option ${t.direction==='Sell'?'selected':''}>Sell</option></select></label><label>Actual Entry<input name="actualEntry" type="number" step="any" value="${esc(v.actualEntry)}"></label><label>Actual Stop Loss<input name="actualSL" type="number" step="any" value="${esc(v.actualSL)}"></label><label>Actual Target<input name="actualTarget" type="number" step="any" value="${esc(v.actualTarget)}"></label><label>Actual Exit<input name="actualExit" type="number" step="any" value="${esc(v.actualExit)}"></label><label>Lots / Quantity<input name="quantity" type="number" step="any" min="0" value="${esc(v.quantity||'1')}"></label><label>Lot size<input name="lotSize" type="number" step="any" min="0" value="${esc(v.lotSize||'1')}"></label><label>Charges<input name="charges" type="number" step="any" min="0" value="${esc(v.charges)}"></label><label>Result<select name="result"><option value="">Not verified</option>${['Win','Loss','Breakeven'].map(x=>`<option ${v.result===x?'selected':''}>${x}</option>`).join('')}</select></label><label>Calculated net P&amp;L<input id="pnlCalculated" readonly value="${pnl===''?'Enter entry, exit, quantity & lot size':fmt(pnl)}"></label><label>Calculated R:R<input id="rrCalculated" readonly value="${rr===''?'Enter entry, SL & target':'1 : '+fmt(rr)}"></label><label>Followed setup<div class="segmented" data-field="followed">${yn(v.followed)}</div></label><label>Moved stop loss<div class="segmented" data-field="movedSL">${yn(v.movedSL)}</div></label><label>Exited early<div class="segmented" data-field="exitedEarly">${yn(v.exitedEarly)}</div></label><label class="wide">Review notes<textarea name="notes" placeholder="What happened? What will you repeat or change?">${esc(v.notes)}</textarea></label></div><div class="photo-grid">${imageInput('beforeImage',t.beforeImage,'Setup screenshot')}${t.beforeImage?`<button type="button" class="secondary" data-shot="${esc(t.beforeImage)}" data-shot-title="Setup screenshot">View setup screenshot</button>`:''}${t.beforeImageUrl?`<button type="button" class="secondary" data-shot="${esc(t.beforeImageUrl)}" data-shot-title="Setup screenshot from Drive">View setup in Drive</button>`:''}${imageInput('afterImage',v.afterImage,'After-trade chart')}${v.afterImage?`<button type="button" class="secondary" data-shot="${esc(v.afterImage)}" data-shot-title="After-trade screenshot">View after screenshot</button>`:''}${v.afterImageUrl?`<button type="button" class="secondary" data-shot="${esc(v.afterImageUrl)}" data-shot-title="After-trade screenshot from Drive">View after in Drive</button>`:''}</div><p class="hint">Choose a chart image from your iPhone Photos library or take a new photo. Local screenshots remain viewable even if Google Drive upload fails.</p></div>`}
 function yn(v){return ['Yes','No'].map(x=>`<button type="button" class="${v===x?'selected':''}" data-yn="${x}">${x}</button>`).join('')}
 function syncDraft(t,form,locked){if(!form)return;if(!locked)['date','timestamp','script','direction','market','currency'].forEach(k=>{const el=form.elements[k];if(el)t[k]=el.value});t.verification=t.verification||{};['actualEntry','actualSL','actualTarget','actualExit','quantity','lotSize','charges','result','notes'].forEach(k=>{const el=form.elements[k];if(el)t.verification[k]=el.value});t.verification.pnl=calculatedPnl(t.verification,t.direction);t.verification.rr=riskReward(t.verification,t.direction);let rr=$('#rrCalculated');if(rr)rr.value=t.verification.rr===''?'Enter entry, SL & target':'1 : '+fmt(t.verification.rr);let pnl=$('#pnlCalculated');if(pnl)pnl.value=t.verification.pnl===''?'Enter entry, exit, quantity & lot size':fmt(t.verification.pnl)}
 function attachTrade(t,locked){let form=$('#tradeForm'), pendingImages={beforeImage:t.beforeImage,afterImage:t.verification?.afterImage}; form?.querySelectorAll('[name]').forEach(el=>['input','change','blur'].forEach(event=>el.addEventListener(event,()=>syncDraft(t,form,locked)))); if(!locked)$('#modeButtons')?.addEventListener('click',e=>{let b=e.target.closest('[data-mode]');if(b){t.mode=b.dataset.mode;document.querySelectorAll('[data-mode]').forEach(x=>x.classList.toggle('selected',x===b))}});
  form?.elements.market?.addEventListener('change',e=>{let currency=e.target.value==='Forex'?'USD':'INR';if(form.elements.currency)form.elements.currency.value=currency;t.market=e.target.value;t.currency=currency;syncDraft(t,form,locked)});
- if(!locked)document.querySelectorAll('[data-answer]').forEach(b=>b.addEventListener('click',()=>{syncDraft(t,form,locked);t.answers[b.dataset.key]=b.dataset.answer;draft=t;renderTrade()}));
+ if(!locked)document.querySelectorAll('[data-answer]').forEach(b=>b.addEventListener('click',()=>{syncDraft(t,form,locked);let key=b.dataset.key,value=b.dataset.answer,auto=t.autoAnswers?.[key];t.answers=t.answers||{};t.rsiOverrides=t.rsiOverrides||{};if(auto){if(value===auto){delete t.rsiOverrides[key];delete t.answers[key]}else{let reason=prompt(`MT5 calculated ${auto} for ${key.replace('|',' — ')}. Why are you overriding it to ${value}?`,'');if(reason===null)return;if(!reason.trim()){alert('Please enter an override reason.');return}t.rsiOverrides[key]={value,reason:reason.trim(),at:new Date().toISOString()}}}else t.answers[key]=value;draft=t;renderTrade()}));
  document.querySelectorAll('[data-yn]').forEach(b=>b.addEventListener('click',()=>{t.verification=t.verification||{};t.verification[b.closest('[data-field]').dataset.field]=b.dataset.yn; b.closest('.segmented')?.querySelectorAll('button').forEach(x=>x.classList.toggle('selected',x===b))}));
  document.querySelectorAll('[data-image]').forEach(input=>input.addEventListener('change',e=>{syncDraft(t,form,locked);compressImage(e.target.files[0]).then(x=>{pendingImages[e.target.dataset.image]=x;if(e.target.dataset.image==='beforeImage'){t.beforeImage=x;t.beforeImageUrl=''}else{t.verification=t.verification||{};t.verification.afterImage=x;t.verification.afterImageUrl=''}draft=t;renderTrade()})}));
- form?.addEventListener('submit',async e=>{e.preventDefault();let submit=form.querySelector('[type="submit"]');if(submit)submit.disabled=true;let f=new FormData(form);['date','timestamp','script','direction','market','currency'].forEach(k=>{let v=f.get(k);if(v!==null)t[k]=v});t.beforeImage=pendingImages.beforeImage;t.verification={...t.verification,actualEntry:f.get('actualEntry'),actualSL:f.get('actualSL'),actualTarget:f.get('actualTarget'),actualExit:f.get('actualExit'),quantity:f.get('quantity'),lotSize:f.get('lotSize'),charges:f.get('charges'),result:f.get('result'),notes:f.get('notes'),afterImage:pendingImages.afterImage};t.verification.pnl=calculatedPnl(t.verification,t.direction);t.verification.rr=riskReward(t.verification,t.direction);let all=getTrades(),i=all.findIndex(x=>x.id===t.id);if(i<0)all.unshift(t);else all[i]=t;putTrades(all);editingId=t.id;draft=null;route='history';render();try{let result=await pushTradeToCloud(t);alert(result.message||'Trade saved successfully.')}catch(err){console.error(err);alert(err.message||'Trade saved locally, but cloud backup failed.')}render()});
+ form?.addEventListener('submit',async e=>{e.preventDefault();let submit=form.querySelector('[type="submit"]');if(submit)submit.disabled=true;let f=new FormData(form);['date','timestamp','script','direction','market','currency'].forEach(k=>{let v=f.get(k);if(v!==null)t[k]=v});t.beforeImage=pendingImages.beforeImage;t.verification={...t.verification,actualEntry:f.get('actualEntry'),actualSL:f.get('actualSL'),actualTarget:f.get('actualTarget'),actualExit:f.get('actualExit'),quantity:f.get('quantity'),lotSize:f.get('lotSize'),charges:f.get('charges'),result:f.get('result'),notes:f.get('notes'),afterImage:pendingImages.afterImage};t.verification.pnl=calculatedPnl(t.verification,t.direction);t.verification.rr=riskReward(t.verification,t.direction);refreshAutoRsiAnswers(t);let all=getTrades(),i=all.findIndex(x=>x.id===t.id);if(i<0)all.unshift(t);else all[i]=t;putTrades(all);editingId=t.id;draft=null;route='history';render();try{let result=await pushTradeToCloud(t);alert(result.message||'Trade saved successfully.')}catch(err){console.error(err);alert(err.message||'Trade saved locally, but cloud backup failed.')}render()});
  bindScreenshotButtons();
  $('#backHistory')?.addEventListener('click',()=>{route='history';render()}); $('#deleteTrade')?.addEventListener('click',()=>{if(confirm('Delete this trade permanently from this device?')){putTrades(getTrades().filter(x=>x.id!==t.id));editingId=null;route='history';render()}});
 }
@@ -522,8 +590,12 @@ function renderHistory(){
  if(historyManage){$('#selectAllShown').onchange=e=>{shownIds.forEach(id=>e.target.checked?selectedHistoryIds.add(id):selectedHistoryIds.delete(id));renderHistory()};$('#deleteSelected').onclick=()=>{let count=selectedHistoryIds.size;if(count&&confirm(`Delete ${count} selected trade${count===1?'':'s'} from this device?`)){deleteHistoryTrades(selectedHistoryIds);selectedHistoryIds.clear();renderHistory()}}}
  document.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>{editingId=b.dataset.open;draft=null;route='new';render()});$('#csvBtn').onclick=exportCSV;$('#importBtn').onclick=()=>$('#importFile').click();bindScreenshotButtons();bindHistorySwipe()
 }
-function renderAnalysis(){const all=getTrades(),done=filterTrades(all,analysisMarket,analysisStock).filter(t=>verified(t)&&hasChecklist(t)),items=groups.flatMap(g=>g.items.map(([n,w])=>({group:g.name,name:n,w,key:g.name+'|'+n})));app.innerHTML=heading('Strategy analysis','Find which rules deserve your trust')+marketFilters(all,analysisMarket,analysisStock,'analysis')+`<div class="card"><h2>Checklist-item performance</h2>${done.length?items.map(i=>{let have=done.filter(t=>t.answers[i.key]==='Yes'),w=have.filter(t=>t.verification.result==='Win').length,l=have.filter(t=>t.verification.result==='Loss').length,wr=have.length?w/have.length*100:0;return `<div class="analysis-item"><div class="bar-row"><span>${i.name}<br><small>${i.group} · WT ${i.w}</small></span><div class="bar"><i style="width:${wr}%"></i></div><b>${wholePercent(wr)}</b></div><small>${have.length} present · ${w} wins · ${l} losses</small></div>`}).join(''):`<div class="empty">No verified checklist trades for this filter.</div>`}</div><div class="card"><h2>Score vs win rate</h2>${done.length?bands(done).map(x=>{let wr=x.all.length?x.wins/x.all.length*100:0;return `<div class="bar-row"><span>${x.label}</span><div class="bar"><i style="width:${wr}%"></i></div><b>${x.all.length?wholePercent(wr):'—'}</b></div>`}).join(''):`<div class="empty">No verified trades for this filter.</div>`}</div><div class="notice">Only verified trades with checklist answers are included.</div>`;$('#analysisMarket').onchange=e=>{analysisMarket=e.target.value;analysisStock='All';renderAnalysis()};$('#analysisStock').onchange=e=>{analysisStock=e.target.value;renderAnalysis()}}
-function exportCSV(){let ts=getTrades(),headers=['ID','Mode','Market','Currency','Date','Timestamp','Script','Direction','Score / 15','Score %','Result','Actual Entry','Actual Stop Loss','Actual Target','Actual Exit','Lots / Quantity','Lot Size','Charges','P&L','R:R','Followed Setup','Moved SL','Exited Early','Review Notes',...groups.flatMap(g=>g.items.map(([n])=>g.name+' — '+n))];let rows=ts.map(t=>[t.id,t.mode,t.market||'',tradeCurrency(t),t.date,t.timestamp,t.script,t.direction,scoreOf(t),percentOf(t).toFixed(2),t.verification?.result,t.verification?.actualEntry,t.verification?.actualSL,t.verification?.actualTarget,t.verification?.actualExit,t.verification?.quantity,t.verification?.lotSize,t.verification?.charges,t.verification?.pnl,t.verification?.rr,t.verification?.followed,t.verification?.movedSL,t.verification?.exitedEarly,t.verification?.notes,...groups.flatMap(g=>g.items.map(([n])=>t.answers[g.name+'|'+n]||''))]);download('tradetrack-ai-backup-'+new Date().toISOString().slice(0,10)+'.csv',[headers,...rows].map(r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\n'),'text/csv')}
+function renderAnalysis(){const all=getTrades(),done=filterTrades(all,analysisMarket,analysisStock).filter(t=>verified(t)&&hasChecklist(t)),items=groups.flatMap(g=>g.items.map(([n,w])=>({group:g.name,name:n,w,key:g.name+'|'+n})));app.innerHTML=heading('Strategy analysis','Find which rules deserve your trust')+marketFilters(all,analysisMarket,analysisStock,'analysis')+`<div class="card"><h2>Checklist-item performance</h2>${done.length?items.map(i=>{let have=done.filter(t=>answerValue(t,i.key)==='Yes'),w=have.filter(t=>t.verification.result==='Win').length,l=have.filter(t=>t.verification.result==='Loss').length,wr=have.length?w/have.length*100:0;return `<div class="analysis-item"><div class="bar-row"><span>${i.name}<br><small>${i.group} · WT ${i.w}</small></span><div class="bar"><i style="width:${wr}%"></i></div><b>${wholePercent(wr)}</b></div><small>${have.length} present · ${w} wins · ${l} losses</small></div>`}).join(''):`<div class="empty">No verified checklist trades for this filter.</div>`}</div><div class="card"><h2>Score vs win rate</h2>${done.length?bands(done).map(x=>{let wr=x.all.length?x.wins/x.all.length*100:0;return `<div class="bar-row"><span>${x.label}</span><div class="bar"><i style="width:${wr}%"></i></div><b>${x.all.length?wholePercent(wr):'—'}</b></div>`}).join(''):`<div class="empty">No verified trades for this filter.</div>`}</div><div class="notice">Only verified trades with checklist answers are included.</div>`;$('#analysisMarket').onchange=e=>{analysisMarket=e.target.value;analysisStock='All';renderAnalysis()};$('#analysisStock').onchange=e=>{analysisStock=e.target.value;renderAnalysis()}}
+function exportCSV(){
+ let ts=getTrades(),headers=['ID','Mode','Market','Currency','Date','Timestamp','Script','Direction','Score / 15','Score %','Result','Actual Entry','Actual Stop Loss','Actual Target','Actual Exit','Lots / Quantity','Lot Size','Charges','P&L','R:R','Entry RSI','Entry RSI Live','Entry RSI Closed','Entry RSI Trend','Entry RSI Slope','Entry RSI Values','Entry RSI Capture','Exit RSI','Exit RSI Live','Exit RSI Closed','Exit RSI Trend','Exit RSI Slope','Exit RSI Values','Exit RSI Capture','RSI Override Reasons','Followed Setup','Moved SL','Exited Early','Review Notes',...groups.flatMap(g=>g.items.map(([n])=>g.name+' — '+n))];
+ let rows=ts.map(t=>{let e=t.rsiEvidence?.entry||{},x=t.rsiEvidence?.exit||{},overrides=Object.entries(t.rsiOverrides||{}).map(([key,v])=>`${key}: ${v.value} — ${v.reason||''}`).join(' | ');return [t.id,t.mode,t.market||'',tradeCurrency(t),t.date,t.timestamp,t.script,t.direction,scoreOf(t),percentOf(t).toFixed(2),t.verification?.result,t.verification?.actualEntry,t.verification?.actualSL,t.verification?.actualTarget,t.verification?.actualExit,t.verification?.quantity,t.verification?.lotSize,t.verification?.charges,t.verification?.pnl,t.verification?.rr,e.used,e.live,e.closed,e.trend,e.slope,(e.values||[]).join('|'),e.captureMode,x.used,x.live,x.closed,x.trend,x.slope,(x.values||[]).join('|'),x.captureMode,overrides,t.verification?.followed,t.verification?.movedSL,t.verification?.exitedEarly,t.verification?.notes,...groups.flatMap(g=>g.items.map(([n])=>answerValue(t,g.name+'|'+n)))]});
+ download('tradetrack-ai-backup-'+new Date().toISOString().slice(0,10)+'.csv',[headers,...rows].map(r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\n'),'text/csv')
+}
 function backupJSON(){download('tradetrack-ai-full-backup-'+new Date().toISOString().slice(0,10)+'.json',JSON.stringify({app:'TradeTrack AI',version:2,trades:getTrades()},null,2),'application/json')}
 function download(name,text,type){let a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
 $('#exportBtn').onclick=exportCSV; $('#importFile').onchange=e=>{let f=e.target.files[0];if(!f)return;let r=new FileReader();r.onload=()=>{try{let x=JSON.parse(r.result);if(!Array.isArray(x.trades))throw 0;if(confirm('Replace current local trade records with this backup?')){putTrades(x.trades);render()}}catch{alert('This is not a valid TradeTrack AI full backup.')}};r.readAsText(f);e.target.value=''};

@@ -1,76 +1,111 @@
-# TradeTrack AI v44
+# TradeTrack AI v45 — Automatic Entry and Exit RSI Evidence
 
-Risk/reward is displayed on trade cards when sufficient trade data exists. The app first uses an imported R:R value, then entry/SL/target, and finally entry/SL/exit for realized R:R.
+This build extends the existing TradeTrack AI PWA, Google Sheets bridge, and MT5 Expert Advisor. It automatically captures the RSI evidence that can be measured objectively and leaves the rest of the trading checklist manual.
 
-After a successful MT5 sync, the dashboard opens with All markets, All instruments, and Till date selected. Till date includes all saved broker history, and the sync message reports the number of MT5 trades stored on the device.
+## What is new
 
-Trade cards show a compact, high-contrast close timestamp such as `27 Aug · 14:35`.
+- Automatic RSI evidence for both entry and exit.
+- Fixed RSI timeframe of M1, with a configurable RSI period.
+- Stores the live event RSI when MT5 is running at the trade event.
+- Stores the latest completed M1 RSI separately for stable analysis.
+- Stores the completed-candle sequence, regression slope, directional moves, trend, candle time, capture time, and capture source.
+- Entry RSI Trend is answered automatically.
+- Entry RSI Level is answered automatically only after buy and sell ranges are configured.
+- Exit Target RSI Level is answered automatically only after long and short exit thresholds are configured.
+- All other checklist answers remain manual.
+- Changing an automatic answer requires a reason. The override, reason, and time are retained locally, in Google Sheets journal backup, and in CSV exports.
+- Checklist category totals are capped, so the overall score cannot exceed 100%.
+- Existing dashboard, trade history, screenshots, cloud backup, filters, reports, and R:R behavior are retained.
 
-Percentage details are displayed as whole values, such as 67% instead of 66.67%. Calculations still retain full precision internally.
+## How trend is calculated
 
-Dashboard statistics are calculated from all trades matching Market, Instrument, and Time filters. Recent trades only displays the latest five from that same filtered set. The default Time period is Till date.
+The default is five completed M1 RSI candles. The lookback can be set from 3 to 10.
 
-In Actual trade & execution, Market controls the default currency automatically: India → INR and Forex → USD.
+1. The EA reads the completed RSI values in chronological order, oldest to newest.
+2. It calculates a linear-regression slope in RSI points per M1 candle.
+3. It counts how many consecutive moves rose and how many fell.
+4. A trend is **Rising** when the slope is at least the configured positive threshold and at least 75% of the moves rose.
+5. A trend is **Falling** when the slope is at or below the negative threshold and at least 75% of the moves fell.
+6. Every other sequence is **Flat/Mixed**.
 
-NIFTY-family and other recognized Indian-market symbols are classified under Indian/INR even if an earlier MT5 import assigned Forex/USD. Run MT5 Sync once to persist the corrected market and currency values.
+The default slope threshold is 0.5 RSI points per candle. For a Buy, Rising produces an automatic Yes for Entry RSI Trend. For a Sell, Falling produces an automatic Yes.
 
-Dashboard Recent trades now use the same organised, responsive card design as Trade History. Swipe deletion remains available only in Trade History.
+## Entry and exit level rules
 
-History cards no longer display Opened and Closed timestamps. Those values remain safely stored in each MT5 record and are available when the trade is opened.
+Open **Dashboard → Broker Sync → Automatic RSI checklist**.
 
-## Compact History and deletion
+- Buy entry passes when RSI is inside the configured Buy minimum/maximum range.
+- Sell entry passes when RSI is inside the configured Sell minimum/maximum range.
+- Long exit passes when RSI is greater than or equal to the configured long-exit threshold.
+- Short exit passes when RSI is less than or equal to the configured short-exit threshold.
 
-History no longer shows selection controls by default. Swipe a card left and tap **Delete** for a single record. For multiple records, tap **Manage**, select the required trades, and tap **Delete**; tap **Done** to return to the normal compact view.
+Blank thresholds do not create an automatic Yes or No. This prevents the app from inventing strategy rules. Enter the values from your tested checklist.
 
-The card layout adapts to screen size: execution details use four columns on wider screens and two columns on phones, preventing ticket, price, and timestamp values from overlapping.
+## Upgrade safely
 
-## New filters and multi-delete
+1. In the current app, create a full JSON backup before replacing anything.
+2. Keep a copy of the current Apps Script project and MT5 EA inputs.
+3. Do not publish an Apps Script URL, API key, broker credential, or FundedNext token in GitHub.
 
-Dashboard, Analysis, and History now use the same two-level filter: choose **All**, **Indian**, or **Forex**, then choose **All instruments** or a specific instrument available within that market. Indian views use INR metrics and Forex views use USD metrics; All keeps the currencies separate.
+## Update Google Apps Script
 
-In History, select individual trades or use **Select all shown**, then press **Delete selected**. Only selected records are removed after confirmation. Deleted MT5 deal identities remain hidden during later syncs on that device.
+1. Open the existing TradeTrack Apps Script project.
+2. Replace its main `Code.gs` with the included `Code.gs`.
+3. If the deployed project contains separate FundedNext helper files, keep those files. The RSI update changes the MT5 and checklist storage paths; it does not require changing private FundedNext credentials.
+4. Deploy a new version of the existing web app: **Deploy → Manage deployments → Edit → New version → Deploy**.
+5. Keep **Execute as: Me** and the same access setting already used by the app.
+6. Keep the existing `/exec` URL and API key. Do not run `setupApiKey` again during an upgrade.
 
-## Important: desktop and iPhone storage
+The script adds missing columns to `MT5_Data` and `Checklist` automatically. Existing rows and unrelated columns are preserved.
 
-The desktop browser and iPhone Home Screen app have separate local storage. Google Sheets is the shared MT5 source. On each device, open **Dashboard → Broker Sync**, save the same Apps Script `/exec` URL and API key, then run **Save settings & sync MT5** once. After that, the app refreshes MT5 history from Sheets when opened (at most once every five minutes).
+## Update MT5
 
-The sync result shows separate counts for **Fetched**, **New**, **Updated**, **Linked to journal**, **Skipped**, and **Errors**. Every valid closed MT5 deal is kept at deal level in History, including partial closes and MT5-only records.
+The package includes both source and a successfully compiled Expert Advisor:
 
-## Deployment
+- `TradeTrackGoogleSheetsSync_v2_30_RSI.mq5`
+- `TradeTrackGoogleSheetsSync_v2_30_RSI.ex5`
 
-Upload `index.html`, `app.js`, `styles.css`, `sw.js`, `manifest.json`, and the existing icon files to the GitHub Pages repository. This web-only correction does not require a new `Code.gs` if the current Apps Script already supports `getMT5`.
+Installation:
 
-On iPhone, open the GitHub Pages URL in Safari and refresh it. Close and reopen the Home Screen app. If it still shows the old version, remove the Home Screen icon, clear Safari website data for the site, open the URL again, and use **Add to Home Screen**.
+1. In MT5, use **File → Open Data Folder**.
+2. Open `MQL5\Experts` and copy the EA files there.
+3. Refresh Expert Advisors in Navigator, or restart MT5.
+4. Attach the EA to one chart only and enable Algo Trading.
+5. Enter the existing Apps Script `/exec` URL and API key in the EA inputs.
+6. In **Tools → Options → Expert Advisors**, allow WebRequest for the Apps Script origin, normally `https://script.google.com`.
+7. Match the EA RSI period, lookback, and slope threshold with the app settings.
 
-## FundedNext Demo MCP sync
+For the stable default, leave **UseLiveRsiForLevel = false**. The EA will still retain the live RSI as evidence when available, while checklist level decisions use the last completed M1 RSI.
 
-Open **Dashboard → Broker Sync**. The app provides **Test FundedNext connection** and **Sync FundedNext trade history** with a selectable date range.
+## Update GitHub Pages
 
-The public GitHub Pages app calls the existing private Google Apps Script backend. The backend uses the official FundedNext MCP Streamable HTTP connection and saves normalized trades in `MT5_Data`; the app then imports them into the local journal. FundedNext access is read-only and cannot place trades or move funds.
+Upload these public web files to the existing GitHub Pages repository:
 
-In Apps Script **Project Settings → Script Properties**, keep the private values under `FUNDEDNEXT_MCP_URL`, optional `FUNDEDNEXT_MCP_TOKEN`, and `FUNDEDNEXT_ACCOUNT_ID`. Never put the MCP link, token, TradeTrack API key, or EA credentials in GitHub.
+- `index.html`
+- `app.js`
+- `styles.css`
+- `sw.js`
+- `manifest.json`
+- `icon.svg`
 
-The existing Google Sheets / MT5 bridge remains available on the same screen.
+Do not upload `Code.gs`, the EA input values, or files containing private keys.
 
-## Apps Script update required
-Replace `Code.gs` with the included file. Select `authorizeAndTestDrive`, click **Run**, approve Drive access, and confirm the execution log says `Drive access OK`.
+After GitHub Pages updates, refresh the site in Safari. For an installed iPhone Home Screen app, close and reopen it. If the old cached version remains, remove the Home Screen icon, clear the website data for the site, reopen the URL, and add it to the Home Screen again.
 
-Then deploy a **new version of the existing web app** using **Deploy → Manage deployments → Edit → New version → Deploy**. Keep **Execute as: Me** and **Who has access: Anyone**.
+## First verification
 
-Do not run setupApiKey again.
+1. Configure the same RSI period, lookback, and slope threshold in the app and EA.
+2. Configure only the entry and exit level thresholds that belong to your tested strategy.
+3. Close a small paper/demo trade while MT5 and the EA are running.
+4. Open **Broker Sync** and run **Save settings & sync MT5**.
+5. Open the imported trade and confirm Entry RSI and Exit RSI cards show values, trend, slope, completed M1 values, times, and `Live captured`.
+6. Change an automatic answer and confirm the app requests an override reason.
+7. Run a history rescan and confirm older trades show `Historical backfill`.
 
-Do not change the existing API key or `/exec` URL. Do not upload `Code.gs` to GitHub.
+## Important evidence limitation
 
-The API returns the private Drive screenshot as a data URL after validating your existing TradeTrack API key.
+The exact live RSI is available only when the EA is running at the entry or exit event. If the PC or MT5 was off, history sync reconstructs the last completed M1 RSI and trend from broker history, but it cannot reconstruct the exact tick-by-tick live RSI that existed inside the unfinished candle.
 
-## GitHub update
-Replace the web app files in your GitHub Pages repository with the v30 files.
+## Career and risk note
 
-After deployment:
-1. Open the site in Safari and refresh once.
-2. Reopen the Home Screen app.
-3. Save a trade with a setup or after-trade screenshot.
-4. Confirm that the app reports the Drive upload result. If it fails, the exact error is displayed and the local screenshot remains viewable.
-5. Open History and use either the local or Drive screenshot button.
-
-Google Drive screenshot files remain private.
+TradeTrack AI is a discipline, evidence, and review tool—not a profit guarantee or a signal service. A three-month date alone should not decide whether to leave employment. Use verified live results, a sufficiently large trade sample, controlled drawdown, consistent checklist adherence, and a separate living-expense runway before making that decision.
