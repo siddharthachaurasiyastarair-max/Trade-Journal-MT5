@@ -1,18 +1,14 @@
-# TradeTrack AI v45 — RSI Entry/Exit Evidence
+# TradeTrack AI v46 — RSI Values and Manual Checklist
 
-- Added automatic M1 RSI evidence at both entry and exit.
-- Added live-event RSI and last-completed-candle RSI as separate values.
-- Added configurable RSI period, 3–10 candle trend lookback, and slope threshold.
-- Trend uses linear-regression slope plus at least 75% matching directional moves.
-- Added configurable buy/sell entry ranges and long/short exit thresholds.
-- Added automatic checklist answers for Entry RSI Trend, Entry RSI Level, and Target RSI Level.
-- Added mandatory reasons for manual overrides of automatic RSI decisions.
-- Added Google Sheets persistence for RSI evidence, automatic decisions, and overrides.
-- Added historical RSI backfill for trades captured while MT5 was not running.
-- Capped checklist category scores so strategy score cannot exceed 100%.
-- Added RSI summaries to history cards and full evidence to trade details and CSV exports.
-- Updated the PWA cache to `tradetrack-v45-rsi-entry-exit`.
-- Updated the Expert Advisor to v2.30; compiled with 0 errors and 0 warnings.
+- Shows only Entry RSI and Exit RSI values from MT5.
+- Removed automatic RSI trend, level and exit decisions from the checklist.
+- Every checklist answer is now manual.
+- Existing manual RSI overrides are converted into ordinary manual answers.
+- Existing duplicate local trades are merged using deal/ticket identity and an execution fingerprint.
+- Future MT5 synchronization updates the matching trade instead of adding another copy when the account-aware identity changes.
+- Manual checklist answers, screenshots and the available RSI values are preserved while duplicates are merged.
+- CSV exports now contain only Entry RSI and Exit RSI for RSI evidence.
+- Updated the PWA cache to `tradetrack-v46-rsi-values-manual`.
 
 ## Retained from v44
 
