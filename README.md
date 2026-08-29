@@ -1,14 +1,17 @@
-# TradeTrack AI v48 — Live MT5 P&L, Filters and Reports
+# TradeTrack AI v49 — Unified Dashboard and Configurable RSI
 
-This build keeps the checklist manual while adding broker-accurate open P&L, multi-account history, custom date filters and in-app MT5 reports.
+This build combines the trading dashboard and MT5 report, allows RSI timeframe/period selection per account, and always uses broker P&L for MT5 records.
 
 ## What is new
 
 - Reads open-position floating P&L and current market price directly from MT5.
+- Shows broker net P&L when an imported MT5 trade is opened; manual formula changes cannot overwrite it.
+- Places Summary, Profit & Loss, Long & Short, Symbols and Risks directly in the Dashboard.
+- Adds per-account RSI timeframe and period controls under Settings.
 - Preserves closed trades from every demo/live account and prevents cross-account ticket collisions.
-- Adds account, market, instrument, preset-period and custom From/To filters to Dashboard, History, Analysis and Reports.
+- Adds account, market, instrument, preset-period and custom From/To filters to Dashboard, History and Analysis; the embedded MT5 report follows the Dashboard filter.
 - Shows all dashboard trades matching the selected filter.
-- Adds Summary, Profit & Loss, Long & Short, Symbols, Risks, account snapshot and open-position report sections.
+- Uses the Dashboard account/date/market/instrument filter for all MT5 report sections.
 - Shows only Entry RSI and Exit RSI from MT5; all checklist answers remain manual.
 
 ## Checklist behavior
@@ -36,19 +39,19 @@ The script adds missing columns automatically and creates `MT5_Accounts` and `MT
 
 The package includes both source and a successfully compiled Expert Advisor:
 
-- `TradeTrackGoogleSheetsSync_v2_40_LiveReports.mq5`
-- `TradeTrackGoogleSheetsSync_v2_40_LiveReports.ex5`
+- `TradeTrackGoogleSheetsSync_v2_50_UnifiedDashboard.mq5`
+- `TradeTrackGoogleSheetsSync_v2_50_UnifiedDashboard.ex5`
 
 Installation:
 
 1. In MT5, use **File → Open Data Folder**.
-2. Remove the previous TradeTrack EA from its chart, then open `MQL5\Experts` and copy the v2.40 EA files there.
+2. Remove the previous TradeTrack EA from its chart, then open `MQL5\Experts` and copy the v2.50 EA files there.
 3. Refresh Expert Advisors in Navigator, or restart MT5.
 4. Attach the EA to one chart only and enable Algo Trading.
 5. Enter the existing Apps Script `/exec` URL and API key in the EA inputs.
 6. In **Tools → Options → Expert Advisors**, allow WebRequest for the Apps Script origin, normally `https://script.google.com`.
-7. Keep `SnapshotSeconds` at 15 for frequent open-position updates, or choose 5–300 seconds.
-8. Set the EA RSI period to match the RSI indicator used in your strategy. The app displays the value supplied by the EA and does not make a checklist decision from it.
+7. Keep `SnapshotSeconds` at 15 and `ConfigRefreshMinutes` at 5 initially.
+8. In the app, open **Settings → RSI timeframe and period**, choose the MT5 account, timeframe and period, then save. The EA applies the selection automatically.
 
 ## Update GitHub Pages
 
@@ -72,8 +75,8 @@ After GitHub Pages updates, refresh the site in Safari. For an installed iPhone 
 3. Use **Refresh MT5** on the dashboard.
 4. Confirm open positions show the same floating P&L as MT5.
 5. Switch the Dashboard account filter and confirm each account keeps its own closed trades.
-6. Choose **Custom** and verify From/To dates on Dashboard, History, Analysis and Reports.
-7. Open **Reports** and confirm Summary, Profit & Loss, Long & Short, Symbols and Risks are present.
+6. Choose **Custom** and verify From/To dates on Dashboard, History and Analysis; confirm the embedded MT5 totals change with the Dashboard dates.
+7. Confirm Summary, Profit & Loss, Long & Short, Symbols and Risks appear in the main Dashboard.
 8. Open a closed trade and confirm only Entry RSI and Exit RSI are shown; checklist answers remain manual.
 
 ## Important evidence limitation

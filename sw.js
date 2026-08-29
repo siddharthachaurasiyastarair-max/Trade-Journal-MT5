@@ -1,4 +1,4 @@
-const CACHE='tradetrack-v48-live-mt5-reports'; const ASSETS=['./','./index.html','./styles.css?v=48','./app.js?v=48','./manifest.json','./icon.svg'];
+const CACHE='tradetrack-v49-unified-dashboard-rsi-config'; const ASSETS=['./','./index.html','./styles.css?v=49','./app.js?v=49','./manifest.json','./icon.svg'];
 self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',e=>{if(e.request.method==='GET')e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request).then(res=>{const copy=res.clone();caches.open(CACHE).then(c=>c.put(e.request,copy));return res}).catch(()=>caches.match('./index.html'))))});

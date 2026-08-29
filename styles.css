@@ -48,3 +48,6 @@
 .filter-panel{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;align-items:end}.filter-panel label{min-width:0}.filter-panel select,.filter-panel input{width:100%;margin-top:4px}.report-section{margin:18px 0}.report-section>.section-label{font-size:14px}.open-positions-table td small{display:block;margin-top:3px;color:var(--muted);white-space:nowrap}.open-positions-table td b{white-space:nowrap}.report-section .metric b{overflow-wrap:anywhere}.table-responsive{overflow-x:auto}.open-positions-table{min-width:760px}
 @media(max-width:700px){.filter-panel{grid-template-columns:repeat(2,minmax(0,1fr))}.report-section{margin:15px 0}.open-positions-table{font-size:11px}}
 @media(max-width:440px){.filter-panel{grid-template-columns:1fr}.top-actions{max-width:210px}.top-actions button{font-size:11px!important}}
+
+/* v49: the MT5 report now lives inside the main dashboard. */
+.unified-mt5-report{margin:26px 0 8px;padding-top:18px;border-top:2px solid #cfdae5}.unified-mt5-report>.section-label{font-size:16px;color:var(--ink)}.unified-mt5-report .report-section{margin-top:15px}.unified-mt5-report .notice{margin-bottom:12px}
