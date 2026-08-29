@@ -1,16 +1,15 @@
-# TradeTrack AI v46 — RSI Values and Manual Checklist
+# TradeTrack AI v48 — Live MT5 P&L, Filters and Reports
 
-This build keeps RSI simple: MT5 supplies only the Entry RSI and Exit RSI values shown in the app. Every checklist answer remains under the trader's manual control.
+This build keeps the checklist manual while adding broker-accurate open P&L, multi-account history, custom date filters and in-app MT5 reports.
 
 ## What is new
 
-- Shows only Entry RSI and Exit RSI in trade details, history cards and CSV exports.
-- Removes automatic RSI trend, level and exit decisions from the checklist.
-- Converts previous manual RSI overrides into normal manual checklist answers.
-- Merges existing duplicate local trades using the MT5 deal/ticket and an execution fingerprint.
-- Prevents the same trade from being re-added when an older import used a default account identity and a newer import includes the broker account.
-- Preserves manual checklist answers, screenshots and available RSI values when duplicate copies are merged.
-- Retains the dashboard, reports, cloud backup, filters, screenshots and R:R calculations.
+- Reads open-position floating P&L and current market price directly from MT5.
+- Preserves closed trades from every demo/live account and prevents cross-account ticket collisions.
+- Adds account, market, instrument, preset-period and custom From/To filters to Dashboard, History, Analysis and Reports.
+- Shows all dashboard trades matching the selected filter.
+- Adds Summary, Profit & Loss, Long & Short, Symbols, Risks, account snapshot and open-position report sections.
+- Shows only Entry RSI and Exit RSI from MT5; all checklist answers remain manual.
 
 ## Checklist behavior
 
@@ -31,24 +30,25 @@ All checklist items—including RSI Trend, entry RSI Level and target RSI Level�
 5. Keep **Execute as: Me** and the same access setting already used by the app.
 6. Keep the existing `/exec` URL and API key. Do not run `setupApiKey` again during an upgrade.
 
-The script adds missing columns to `MT5_Data` and `Checklist` automatically. Existing rows and unrelated columns are preserved.
+The script adds missing columns automatically and creates `MT5_Accounts` and `MT5_Open_Positions` when first used. Existing `MT5_Data`, trade, checklist and screenshot records are preserved.
 
 ## Update MT5
 
 The package includes both source and a successfully compiled Expert Advisor:
 
-- `TradeTrackGoogleSheetsSync_v2_30_RSI.mq5`
-- `TradeTrackGoogleSheetsSync_v2_30_RSI.ex5`
+- `TradeTrackGoogleSheetsSync_v2_40_LiveReports.mq5`
+- `TradeTrackGoogleSheetsSync_v2_40_LiveReports.ex5`
 
 Installation:
 
 1. In MT5, use **File → Open Data Folder**.
-2. Open `MQL5\Experts` and copy the EA files there.
+2. Remove the previous TradeTrack EA from its chart, then open `MQL5\Experts` and copy the v2.40 EA files there.
 3. Refresh Expert Advisors in Navigator, or restart MT5.
 4. Attach the EA to one chart only and enable Algo Trading.
 5. Enter the existing Apps Script `/exec` URL and API key in the EA inputs.
 6. In **Tools → Options → Expert Advisors**, allow WebRequest for the Apps Script origin, normally `https://script.google.com`.
-7. Set the EA RSI period to match the RSI indicator used in your strategy. The app displays the value supplied by the EA and does not make a checklist decision from it.
+7. Keep `SnapshotSeconds` at 15 for frequent open-position updates, or choose 5–300 seconds.
+8. Set the EA RSI period to match the RSI indicator used in your strategy. The app displays the value supplied by the EA and does not make a checklist decision from it.
 
 ## Update GitHub Pages
 
@@ -69,10 +69,12 @@ After GitHub Pages updates, refresh the site in Safari. For an installed iPhone 
 
 1. Set the RSI period in the EA to match your MT5 RSI indicator.
 2. Close a small paper/demo trade while MT5 and the EA are running.
-3. Open **Broker Sync** and run **Save settings & sync MT5**.
-4. Confirm the same trade appears only once.
-5. Open it and confirm only Entry RSI and Exit RSI are shown in the RSI panel.
-6. Confirm every checklist Yes/No answer can be chosen manually.
+3. Use **Refresh MT5** on the dashboard.
+4. Confirm open positions show the same floating P&L as MT5.
+5. Switch the Dashboard account filter and confirm each account keeps its own closed trades.
+6. Choose **Custom** and verify From/To dates on Dashboard, History, Analysis and Reports.
+7. Open **Reports** and confirm Summary, Profit & Loss, Long & Short, Symbols and Risks are present.
+8. Open a closed trade and confirm only Entry RSI and Exit RSI are shown; checklist answers remain manual.
 
 ## Important evidence limitation
 
